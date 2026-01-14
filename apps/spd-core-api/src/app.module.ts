@@ -13,6 +13,7 @@ import { FinancieroModule } from "./financiero/financiero.module";
 import { DagrdModule } from "./dagrd/dagrd.module";
 import { SubModule } from "./sub/sub.module";
 import { ContratosModule } from "./contratos/contratos.module";
+import { SapSyncModule } from "./sap-sync/sap-sync.module";
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { ContratosModule } from "./contratos/contratos.module";
     DagrdModule,
     SubModule,
     ContratosModule,
+    SapSyncModule,
   ],
   providers: [JwtStrategy],
 })
