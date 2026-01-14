@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "apps/spd-core-api/src",
+  "monorepo": true,
+  "projects": {
+    "spd-core-api": {
+      "type": "application",
+      "root": "apps/spd-core-api",
+      "entryFile": "main",
+      "sourceRoot": "apps/spd-core-api/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/spd-core-api/tsconfig.app.json"
+      }
+    },
+    "spd-core-worker": {
+      "type": "application",
+      "root": "apps/spd-core-worker",
+      "entryFile": "main",
+      "sourceRoot": "apps/spd-core-worker/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/spd-core-worker/tsconfig.app.json"
+      }
+    }
+  },
+  "compilerOptions": {
+    "deleteOutDir": true,
+    "webpack": true
+  }
+}
