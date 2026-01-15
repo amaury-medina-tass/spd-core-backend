@@ -20,7 +20,7 @@ export class ContratosMarcoService {
 
     const entity = await this.repo.save(
       this.repo.create({
-        contract_number: dto.contract_number,
+        number: dto.number,
         cdp,
         consumed_value: dto.consumed_value,
       })
@@ -28,7 +28,7 @@ export class ContratosMarcoService {
 
     await this.outbox.enqueue("SPD.CONTRATO_MARCO_CREATED", {
       id: entity.id,
-      contractNumber: entity.contract_number,
+      contractNumber: entity.number,
       cdpId: cdp.id,
       consumedValue: entity.consumed_value,
       occurredAt: new Date().toISOString(),
@@ -38,6 +38,6 @@ export class ContratosMarcoService {
   }
 
   list() {
-    return this.repo.find({ order: { created_at: "DESC" } });
+    return this.repo.find({ order: { createAt: "DESC" } });
   }
 }

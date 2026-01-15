@@ -9,7 +9,7 @@ import { UpdateMgaActivityDto } from "../dto/update-mga-activity.dto";
 export class MgaActivitiesService {
   constructor(
     @InjectRepository(MgaActivity) private repo: Repository<MgaActivity>
-  ) {}
+  ) { }
 
   async create(dto: CreateMgaActivityDto) {
     const activity = this.repo.create({
@@ -19,7 +19,7 @@ export class MgaActivitiesService {
   }
 
   findAll() {
-    return this.repo.find({ order: { creationDate: "DESC" } });
+    return this.repo.find({ order: { createAt: "DESC" } });
   }
 
   findOne(id: string) {
@@ -51,8 +51,8 @@ export class MgaActivitiesService {
       ];
     }
 
-    const sortableFields = ["creationDate", "name", "code", "projectCode"];
-    const validSortBy = sortBy && sortableFields.includes(sortBy) ? sortBy : "creationDate";
+    const sortableFields = ["createAt", "name", "code", "projectCode"];
+    const validSortBy = sortBy && sortableFields.includes(sortBy) ? sortBy : "createAt";
     const validSortOrder = sortOrder === "ASC" || sortOrder === "DESC" ? sortOrder : "DESC";
 
     const [data, total] = await this.repo.findAndCount({

@@ -7,7 +7,7 @@ import { UpdateVariableDto } from "../dto/update-variable.dto";
 
 @Injectable()
 export class VariablesService {
-  constructor(@InjectRepository(Variable) private repo: Repository<Variable>) {}
+  constructor(@InjectRepository(Variable) private repo: Repository<Variable>) { }
 
   create(dto: CreateVariableDto) {
     return this.repo.save(
@@ -20,7 +20,7 @@ export class VariablesService {
   }
 
   findAll() {
-    return this.repo.find({ order: { created_at: "DESC" } });
+    return this.repo.find({ order: { createAt: "DESC" } });
   }
 
   async findOne(id: string) {

@@ -13,7 +13,7 @@ export class PlanActionService {
     @InjectRepository(PlanAction) private repo: Repository<PlanAction>,
     @InjectRepository(DetailedActivity) private activities: Repository<DetailedActivity>,
     private outbox: OutboxService
-  ) {}
+  ) { }
 
   async create(dto: CreatePlanActionDto) {
     const activity = await this.activities.findOne({ where: { id: dto.activity_id } });
@@ -38,7 +38,7 @@ export class PlanActionService {
   }
 
   list() {
-    return this.repo.find({ order: { created_at: "DESC" } });
+    return this.repo.find({ order: { createAt: "DESC" } });
   }
 
   async updateAdvance(id: string, dto: UpdatePlanActionDto) {

@@ -9,22 +9,22 @@ import {
 
 @Entity({ name: "mga_activity" })
 export class MgaActivity {
-  @PrimaryGeneratedColumn("uuid", { name: "id_activity_m" })
+  @PrimaryGeneratedColumn("uuid")
   id!: string;
 
-  @Column({ name: "activity_code", type: "character varying", nullable: false })
+  @Column({ type: "character varying", nullable: false })
   code!: string;
 
-  @Column({ name: "name_activity", type: "character varying", nullable: false })
+  @Column({ type: "character varying", nullable: false })
   name!: string;
 
   @Column({ name: "project_code", type: "integer", nullable: false })
   projectCode!: number;
 
-  @Column({ name: "observations", type: "character varying", nullable: true })
+  @Column({ type: "character varying", nullable: true })
   observations?: string;
 
-  @Column({ name: "value_activity", type: "numeric", nullable: true })
+  @Column({ type: "numeric", nullable: true })
   value?: number;
 
   @Column({ name: "product_code", type: "integer", default: 0 })

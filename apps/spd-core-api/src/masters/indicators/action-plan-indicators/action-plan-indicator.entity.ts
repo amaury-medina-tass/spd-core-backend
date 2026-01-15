@@ -42,9 +42,9 @@ export class ActionPlanIndicator {
   })
   variables!: Variable[];
 
-  @CreateDateColumn({ type: "timestamp" })
-  created_at!: Date;
+  @CreateDateColumn({ name: "create_at", type: "timestamp", default: () => "now()" })
+  createAt!: Date;
 
-  @UpdateDateColumn({ type: "timestamp" })
-  updated_at!: Date;
+  @UpdateDateColumn({ name: "update_at", type: "timestamp", default: () => "now()" })
+  updateAt!: Date;
 }

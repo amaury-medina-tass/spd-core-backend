@@ -13,7 +13,7 @@ export class CdpService {
     @InjectRepository(Cdp) private repo: Repository<Cdp>,
     @InjectRepository(DetailedActivity) private activities: Repository<DetailedActivity>,
     private outbox: OutboxService
-  ) {}
+  ) { }
 
   private async recalcActivityCurrentValue(activityId: string) {
     // ✅ recalcula current_value = base_value + sum(activity_delta)
@@ -63,7 +63,7 @@ export class CdpService {
   }
 
   findAll() {
-    return this.repo.find({ order: { created_at: "DESC" } });
+    return this.repo.find({ order: { createAt: "DESC" } });
   }
 
   async findOne(id: string) {

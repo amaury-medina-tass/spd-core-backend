@@ -11,7 +11,7 @@ export class ActionPlanIndicatorsService {
   constructor(
     @InjectRepository(ActionPlanIndicator) private repo: Repository<ActionPlanIndicator>,
     @InjectRepository(Variable) private variableRepo: Repository<Variable>
-  ) {}
+  ) { }
 
   async create(dto: CreateActionPlanIndicatorDto) {
     const variables = await this.variableRepo.findBy({
@@ -27,7 +27,7 @@ export class ActionPlanIndicatorsService {
   }
 
   findAll() {
-    return this.repo.find({ order: { created_at: "DESC" } });
+    return this.repo.find({ order: { createAt: "DESC" } });
   }
 
   findOne(id: string) {

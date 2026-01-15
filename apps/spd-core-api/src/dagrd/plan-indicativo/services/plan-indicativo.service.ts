@@ -13,7 +13,7 @@ export class PlanIndicativoService {
     @InjectRepository(PlanIndicativo) private repo: Repository<PlanIndicativo>,
     @InjectRepository(MgaActivity) private activities: Repository<MgaActivity>,
     private outbox: OutboxService
-  ) {}
+  ) { }
 
   async create(dto: CreatePlanIndicativoDto) {
     const activity = await this.activities.findOne({ where: { id: dto.activity_id } });
@@ -38,7 +38,7 @@ export class PlanIndicativoService {
   }
 
   list() {
-    return this.repo.find({ order: { created_at: "DESC" } });
+    return this.repo.find({ order: { createAt: "DESC" } });
   }
 
   async updateAdvance(id: string, dto: UpdatePlanIndicativoDto) {

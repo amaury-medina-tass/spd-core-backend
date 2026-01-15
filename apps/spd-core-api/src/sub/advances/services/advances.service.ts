@@ -12,7 +12,7 @@ export class AdvancesService {
     @InjectRepository(VariableAdvance) private repo: Repository<VariableAdvance>,
     @InjectRepository(Variable) private variables: Repository<Variable>,
     private outbox: OutboxService
-  ) {}
+  ) { }
 
   async create(dto: CreateAdvanceDto) {
     const variable = await this.variables.findOne({ where: { id: dto.variable_id } });
@@ -40,6 +40,6 @@ export class AdvancesService {
   }
 
   list() {
-    return this.repo.find({ order: { created_at: "DESC" } });
+    return this.repo.find({ order: { createAt: "DESC" } });
   }
 }

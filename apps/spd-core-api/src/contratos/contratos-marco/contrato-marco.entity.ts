@@ -7,7 +7,7 @@ export class ContratoMarco {
   id!: string;
 
   @Column({ type: "varchar", length: 150 })
-  contract_number!: string;
+  number!: string;
 
   @ManyToOne(() => Cdp, { eager: true, onDelete: "RESTRICT" })
   cdp!: Cdp;
