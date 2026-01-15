@@ -7,7 +7,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from "typeorm";
-import { Cdp } from "../../../financiero/cdp/cdp.entity";
+import { Cdp } from "../../../financial/cdp/cdp.entity";
 
 @Entity({ name: "detailed_activities" })
 export class DetailedActivity {

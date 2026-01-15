@@ -8,7 +8,7 @@ export class OutboxService {
   constructor(
     @InjectRepository(OutboxMessage)
     private readonly repo: Repository<OutboxMessage>
-  ) {}
+  ) { }
 
   /**
    * ✅ Encola un evento para que el worker lo publique.
@@ -18,7 +18,7 @@ export class OutboxService {
     name: string,
     payload: Record<string, any>,
     headers: Record<string, any> = {}
-  ) {
+  ): Promise<OutboxMessage> {
     const msg = this.repo.create({
       name,
       payload,
@@ -27,6 +27,6 @@ export class OutboxService {
       attempts: 0,
     } as any);
 
-    return this.repo.save(msg);
+    return (await this.repo.save(msg)) as unknown as OutboxMessage;
   }
 }

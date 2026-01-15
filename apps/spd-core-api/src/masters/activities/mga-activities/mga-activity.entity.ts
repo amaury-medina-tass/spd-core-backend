@@ -30,6 +30,9 @@ export class MgaActivity {
   @Column({ name: "product_code", type: "integer", default: 0 })
   productCode!: number;
 
-  @CreateDateColumn({ name: "creation_date", type: "date", default: () => "CURRENT_DATE" })
-  creationDate!: Date;
+  @CreateDateColumn({ name: "create_at", type: "timestamp", default: () => "now()" })
+  createAt!: Date;
+
+  @UpdateDateColumn({ name: "update_at", type: "timestamp", default: () => "now()" })
+  updateAt!: Date;
 }

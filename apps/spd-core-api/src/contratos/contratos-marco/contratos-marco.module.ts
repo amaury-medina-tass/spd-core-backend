@@ -1,7 +1,7 @@
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { ContratoMarco } from "./contrato-marco.entity";
-import { Cdp } from "../../financiero/cdp/cdp.entity";
+import { Cdp } from "../../financial/cdp/cdp.entity";
 import { ContratosMarcoService } from "./services/contratos-marco.service";
 import { ContratosMarcoController } from "./controllers/contratos-marco.controller";
 import { OutboxModule } from "../../outbox/outbox.module";
@@ -11,4 +11,4 @@ import { OutboxModule } from "../../outbox/outbox.module";
   providers: [ContratosMarcoService],
   controllers: [ContratosMarcoController],
 })
-export class ContratosMarcoModule {}
+export class ContratosMarcoModule { }

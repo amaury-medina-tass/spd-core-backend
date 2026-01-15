@@ -4,4 +4,4 @@ import { CdpModule } from "./cdp/cdp.module";
 @Module({
   imports: [CdpModule],
 })
-export class FinancieroModule {}
+export class FinancialModule { }

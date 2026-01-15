@@ -9,7 +9,7 @@ import { OutboxModule } from "./outbox/outbox.module";
 import { JwtStrategy } from "./auth/strategies/jwt.strategy";
 
 import { MastersModule } from "./masters/masters.module";
-import { FinancieroModule } from "./financiero/financiero.module";
+import { FinancialModule } from "./financial/financial.module";
 import { DagrdModule } from "./dagrd/dagrd.module";
 import { SubModule } from "./sub/sub.module";
 import { ContratosModule } from "./contratos/contratos.module";
@@ -27,7 +27,7 @@ import { SapSyncModule } from "./sap-sync/sap-sync.module";
     OutboxModule,
 
     MastersModule,
-    FinancieroModule,
+    FinancialModule,
     DagrdModule,
     SubModule,
     ContratosModule,
@@ -35,4 +35,4 @@ import { SapSyncModule } from "./sap-sync/sap-sync.module";
   ],
   providers: [JwtStrategy],
 })
-export class AppModule {}
+export class AppModule { }

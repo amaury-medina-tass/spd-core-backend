@@ -7,6 +7,8 @@ import { DetailedActivitiesModule } from "./activities/detailed-activities/detai
 import { MgaActivitiesModule } from "./activities/mga-activities/mga-activities.module";
 import { ActionPlanIndicatorsModule } from "./indicators/action-plan-indicators/action-plan-indicators.module";
 import { IndicativePlanIndicatorsModule } from "./indicators/indicative-plan-indicators/indicative-plan-indicators.module";
+import { PreviousStudiesModule } from "./previous-studies/previous-studies.module";
+import { NeedsModule } from "./needs/needs.module";
 
 @Module({
   imports: [
@@ -15,6 +17,8 @@ import { IndicativePlanIndicatorsModule } from "./indicators/indicative-plan-ind
     MgaActivitiesModule,
     ActionPlanIndicatorsModule,
     IndicativePlanIndicatorsModule,
+    PreviousStudiesModule,
+    NeedsModule,
   ],
 })
-export class MastersModule {}
+export class MastersModule { }

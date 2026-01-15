@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { ContratoMarco } from "../contrato-marco.entity";
-import { Cdp } from "../../../financiero/cdp/cdp.entity";
+import { Cdp } from "../../../financial/cdp/cdp.entity";
 import { CreateContratoMarcoDto } from "../dto/create-contrato-marco.dto";
 import { OutboxService } from "../../../outbox/outbox.service";
 
@@ -12,7 +12,7 @@ export class ContratosMarcoService {
     @InjectRepository(ContratoMarco) private repo: Repository<ContratoMarco>,
     @InjectRepository(Cdp) private cdps: Repository<Cdp>,
     private outbox: OutboxService
-  ) {}
+  ) { }
 
   async create(dto: CreateContratoMarcoDto) {
     const cdp = await this.cdps.findOne({ where: { id: dto.cdp_id } });

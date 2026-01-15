@@ -1,5 +1,5 @@
-import { Column, CreateDateColumn, Entity, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
-import { Cdp } from "../../financiero/cdp/cdp.entity";
+import { Column, CreateDateColumn, Entity, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
+import { Cdp } from "../../financial/cdp/cdp.entity";
 
 @Entity({ name: "contratos_marco" })
 export class ContratoMarco {
@@ -15,6 +15,9 @@ export class ContratoMarco {
   @Column({ type: "numeric", default: 0 })
   consumed_value!: number;
 
-  @CreateDateColumn({ type: "timestamp" })
-  created_at!: Date;
+  @CreateDateColumn({ name: "create_at", type: "timestamp", default: () => "now()" })
+  createAt!: Date;
+
+  @UpdateDateColumn({ name: "update_at", type: "timestamp", default: () => "now()" })
+  updateAt!: Date;
 }
