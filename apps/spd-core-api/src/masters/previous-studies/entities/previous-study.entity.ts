@@ -14,10 +14,7 @@ export class PreviousStudy {
     id!: string;
 
     @Column({ type: "varchar", length: 50, nullable: true })
-    code?: string;
-
-    @Column({ type: "text", nullable: true })
-    justification?: string;
+    code!: string;
 
     @Column({ type: "varchar", length: 50, nullable: true })
     status?: string;

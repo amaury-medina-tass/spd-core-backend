@@ -24,7 +24,6 @@ export class PreviousStudiesService {
         if (search) {
             whereCondition = [
                 { code: ILike(`%${search}%`) },
-                { justification: ILike(`%${search}%`) },
                 { status: ILike(`%${search}%`) },
             ];
         }

@@ -24,7 +24,6 @@ export class NeedsService {
         if (search) {
             whereCondition = [
                 { description: ILike(`%${search}%`) },
-                // Add more search fields if needed (e.g. cast code to text)
             ];
         }
 
