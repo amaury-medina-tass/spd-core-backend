@@ -1,15 +1,15 @@
-import { Controller, Get, Query, UseGuards } from "@nestjs/common";
+import { Controller, Get, Param, Query, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../../../auth/guards/jwt-auth.guard";
 import { ResponseMessage } from "../../../common/decorators/response-message.decorator";
-import { NeedsService } from "../services/needs.service";
+import { MasterContractsService } from "../services/master-contracts.service";
 
 @UseGuards(JwtAuthGuard)
-@Controller("financial/needs")
-export class NeedsController {
-    constructor(private readonly service: NeedsService) { }
+@Controller("financial/master-contracts")
+export class MasterContractsController {
+    constructor(private readonly service: MasterContractsService) { }
 
     @Get()
-    @ResponseMessage("Listado de necesidades")
+    @ResponseMessage("Listado de contratos marco")
     findAll(
         @Query("page") page: number,
         @Query("limit") limit: number,
@@ -24,5 +24,10 @@ export class NeedsController {
             sortBy,
             sortOrder
         );
+    }
+    @Get(":id")
+    @ResponseMessage("Detalle del contrato marco")
+    findOne(@Param("id") id: string) {
+        return this.service.findOne(id);
     }
 }

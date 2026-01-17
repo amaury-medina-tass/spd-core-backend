@@ -7,7 +7,9 @@ import {
     UpdateDateColumn,
     JoinColumn,
 } from "typeorm";
-import { PreviousStudy } from "../../previous-studies/entities/previous-study.entity";
+import { PreviousStudy } from "../../../masters/previous-studies/entities/previous-study.entity";
+import { MasterContract } from "../../master-contracts/entities/master-contract.entity";
+import { OneToMany } from "typeorm";
 
 @Entity({ name: "needs" })
 export class Need {
@@ -28,6 +30,9 @@ export class Need {
     })
     @JoinColumn({ name: "previous_study_id" })
     previousStudy!: PreviousStudy;
+
+    @OneToMany(() => MasterContract, (masterContract) => masterContract.need)
+    masterContracts?: MasterContract[];
 
     @CreateDateColumn({ name: "create_at", type: "timestamp", default: () => "now()" })
     createAt!: Date;

@@ -6,21 +6,21 @@ import {
     PrimaryGeneratedColumn,
     UpdateDateColumn,
 } from "typeorm";
-import { Need } from "../../../financial/needs/entities/need.entity";
+import { Project } from "../../projects/entities/project.entity";
 
-@Entity({ name: "previous_studies" })
-export class PreviousStudy {
+@Entity({ name: "dependencies" })
+export class Dependency {
     @PrimaryGeneratedColumn("uuid")
     id!: string;
 
-    @Column({ type: "varchar", length: 50, nullable: true })
+    @Column({ type: "text", unique: true })
     code!: string;
 
-    @Column({ type: "varchar", length: 50, nullable: true })
-    status?: string;
+    @Column({ type: "text" })
+    name!: string;
 
-    @OneToMany(() => Need, (need) => need.previousStudy)
-    needs!: Need[];
+    @OneToMany(() => Project, (project) => project.dependency)
+    projects?: Project[];
 
     @CreateDateColumn({ name: "create_at", type: "timestamp", default: () => "now()" })
     createAt!: Date;

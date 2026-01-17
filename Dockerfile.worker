@@ -1,0 +1,36 @@
+# Build stage
+FROM oven/bun:latest AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json ./
+
+# Install dependencies with Bun
+RUN bun install
+
+# Copy source code
+COPY . .
+
+# Build the worker application
+RUN bun run nest build spd-core-worker
+
+# Production stage
+FROM oven/bun:latest AS production
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json ./
+
+# Install only production dependencies
+RUN bun install --production
+
+# Copy built application from builder stage
+COPY --from=builder /app/dist ./dist
+
+# Workers do NOT expose any ports
+# No EXPOSE directive needed
+
+# Start the worker with Bun
+CMD ["bun", "run", "dist/apps/spd-core-worker/main.js"]
