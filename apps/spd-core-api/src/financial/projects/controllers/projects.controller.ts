@@ -33,6 +33,20 @@ export class ProjectsController {
         );
     }
 
+    @Get("select")
+    @ResponseMessage("Proyectos para selector")
+    findForSelect(
+        @Query("search") search: string,
+        @Query("limit") limit: number,
+        @Query("offset") offset: number
+    ) {
+        return this.service.findForSelect(
+            search,
+            limit ? +limit : 30,
+            offset ? +offset : 0
+        );
+    }
+
     @Get(":id")
     @ResponseMessage("Detalle del proyecto")
     findOne(@Param("id") id: string) {

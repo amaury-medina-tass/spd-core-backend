@@ -7,7 +7,7 @@ import {
     UpdateDateColumn,
     JoinColumn,
 } from "typeorm";
-import { PreviousStudy } from "../../../masters/previous-studies/entities/previous-study.entity";
+import { PreviousStudy } from "../../previous-studies/entities/previous-study.entity";
 import { MasterContract } from "../../master-contracts/entities/master-contract.entity";
 import { OneToMany } from "typeorm";
 

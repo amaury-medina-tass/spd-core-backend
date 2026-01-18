@@ -119,4 +119,36 @@ export class ProjectsService {
 
         return project;
     }
+
+    async findForSelect(search?: string, limit: number = 30, offset: number = 0) {
+        const queryBuilder = this.repo
+            .createQueryBuilder("project")
+            .select(["project.id", "project.code", "project.name"])
+            .where("project.state = :state", { state: true });
+
+        if (search) {
+            queryBuilder.andWhere(
+                new Brackets((qb) => {
+                    qb.where("project.code ILIKE :search", { search: `%${search}%` })
+                        .orWhere("project.name ILIKE :search", { search: `%${search}%` });
+                })
+            );
+        }
+
+        const [data, total] = await queryBuilder
+            .orderBy("project.name", "ASC")
+            .skip(offset)
+            .take(limit)
+            .getManyAndCount();
+
+        return {
+            data,
+            meta: {
+                total,
+                limit,
+                offset,
+                hasMore: offset + data.length < total,
+            },
+        };
+    }
 }

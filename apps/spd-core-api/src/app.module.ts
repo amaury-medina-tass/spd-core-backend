@@ -10,9 +10,6 @@ import { JwtStrategy } from "./auth/strategies/jwt.strategy";
 
 import { MastersModule } from "./masters/masters.module";
 import { FinancialModule } from "./financial/financial.module";
-import { DagrdModule } from "./dagrd/dagrd.module";
-import { SubModule } from "./sub/sub.module";
-import { ContratosModule } from "./contratos/contratos.module";
 import { SapSyncModule } from "./sap-sync/sap-sync.module";
 
 @Module({
@@ -28,9 +25,6 @@ import { SapSyncModule } from "./sap-sync/sap-sync.module";
 
     MastersModule,
     FinancialModule,
-    DagrdModule,
-    SubModule,
-    ContratosModule,
     SapSyncModule,
   ],
   providers: [JwtStrategy],
