@@ -28,8 +28,7 @@ export class MgaActivity {
     @Column({ type: "text", nullable: true })
     observations?: string;
 
-    @Column({ name: "activity_date", type: "timestamp", nullable: true })
-    activityDate?: Date;
+
 
     @ManyToOne(() => Product)
     @JoinColumn({ name: "product_id" })

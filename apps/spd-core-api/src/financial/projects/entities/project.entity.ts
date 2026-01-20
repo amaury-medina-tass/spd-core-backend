@@ -41,14 +41,7 @@ export class Project {
     @Column({ type: "numeric", precision: 18, scale: 2, default: 0 })
     execution?: number;
 
-    @Column({ type: "numeric", precision: 18, scale: 2, default: 0 })
-    commitment?: number;
 
-    @Column({ type: "numeric", precision: 18, scale: 2, default: 0 })
-    payments?: number;
-
-    @Column({ type: "numeric", precision: 18, scale: 2, default: 0 })
-    invoiced?: number;
 
     @Column({ type: "text", default: "UNKNOWN" })
     origin?: string;

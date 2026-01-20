@@ -13,10 +13,10 @@ export class PreviousStudy {
     @PrimaryGeneratedColumn("uuid")
     id!: string;
 
-    @Column({ type: "varchar", length: 50, nullable: true })
+    @Column({ type: "text", unique: true })
     code!: string;
 
-    @Column({ type: "varchar", length: 50, nullable: true })
+    @Column({ type: "text", nullable: true })
     status?: string;
 
     @OneToMany(() => Need, (need) => need.previousStudy)

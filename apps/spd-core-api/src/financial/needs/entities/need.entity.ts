@@ -16,8 +16,8 @@ export class Need {
     @PrimaryGeneratedColumn("uuid")
     id!: string;
 
-    @Column({ type: "int", nullable: true })
-    code?: number;
+    @Column({ type: "text", unique: true })
+    code?: string;
 
     @Column({ type: "numeric", precision: 18, scale: 2, default: 0 })
     amount!: number;
