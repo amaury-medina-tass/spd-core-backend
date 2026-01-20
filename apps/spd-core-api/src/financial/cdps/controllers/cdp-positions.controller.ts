@@ -17,6 +17,24 @@ export class CdpPositionsController {
         return this.service.findByCdpId(cdpId, search);
     }
 
+    @Get("positions/table")
+    @ResponseMessage("Tabla de posiciones de CDPs")
+    findForTable(
+        @Query("page") page: number,
+        @Query("limit") limit: number,
+        @Query("search") search: string,
+        @Query("sortBy") sortBy: string,
+        @Query("sortOrder") sortOrder: "ASC" | "DESC"
+    ) {
+        return this.service.findForTable(
+            page ? +page : 1,
+            limit ? +limit : 10,
+            search,
+            sortBy,
+            sortOrder
+        );
+    }
+
     @Get("positions/:id")
     @ResponseMessage("Detalle de la posición CDP")
     findOne(@Param("id") id: string) {

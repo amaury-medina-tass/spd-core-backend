@@ -7,6 +7,7 @@ import {
     UpdateDateColumn,
 } from "typeorm";
 import { CdpPosition } from "./cdp-position.entity";
+import { CdpProject } from "./cdp-project.entity";
 
 @Entity({ name: "cdps" })
 export class Cdp {
@@ -27,6 +28,9 @@ export class Cdp {
 
     @OneToMany(() => CdpPosition, (position) => position.cdp)
     positions?: CdpPosition[];
+
+    @OneToMany(() => CdpProject, (cdpProject) => cdpProject.cdp)
+    cdpProjects?: CdpProject[];
 
     @CreateDateColumn({ name: "create_at", type: "timestamp", default: () => "now()" })
     createAt!: Date;

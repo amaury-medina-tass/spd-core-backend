@@ -8,6 +8,7 @@ import { CdpsService } from "../services/cdps.service";
 export class CdpsController {
     constructor(private readonly service: CdpsService) { }
 
+    // GET /financial/cdps - Lista paginada
     @Get()
     @ResponseMessage("Listado de CDPs")
     findAll(
@@ -26,6 +27,9 @@ export class CdpsController {
         );
     }
 
+
+
+    // GET /financial/cdps/select - Para selector/autocomplete
     @Get("select")
     @ResponseMessage("CDPs para selector")
     findForSelect(
@@ -40,6 +44,7 @@ export class CdpsController {
         );
     }
 
+    // GET /financial/cdps/:id - Detalle (DEBE ir al final)
     @Get(":id")
     @ResponseMessage("Detalle del CDP")
     findOne(@Param("id") id: string) {

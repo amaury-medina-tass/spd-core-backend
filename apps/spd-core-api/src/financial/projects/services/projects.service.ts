@@ -25,9 +25,7 @@ export class ProjectsService {
             initialBudget: dto.initialBudget,
             currentBudget: dto.currentBudget,
             execution: dto.execution,
-            commitment: dto.commitment,
-            payments: dto.payments,
-            invoiced: dto.invoiced,
+
             origin: dto.origin,
             dependency: dependency,
         });
@@ -55,9 +53,7 @@ export class ProjectsService {
             "initialBudget",
             "currentBudget",
             "execution",
-            "commitment",
-            "payments",
-            "invoiced",
+
             "origin",
             "state",
             "dependency.code",

@@ -25,17 +25,7 @@ export class CreateProjectDto {
     @IsNumber()
     execution?: number;
 
-    @IsOptional()
-    @IsNumber()
-    commitment?: number;
 
-    @IsOptional()
-    @IsNumber()
-    payments?: number;
-
-    @IsOptional()
-    @IsNumber()
-    invoiced?: number;
 
     @IsOptional()
     @IsString()

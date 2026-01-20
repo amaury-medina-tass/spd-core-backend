@@ -37,7 +37,8 @@ export class CdpsService {
 
         const queryBuilder = this.repo
             .createQueryBuilder("cdp")
-            .leftJoin("cdp.project", "project")
+            .leftJoin("cdp.cdpProjects", "cdpProjects")
+            .leftJoin("cdpProjects.project", "project")
             .addSelect(["cdp", "project.id", "project.code", "project.name"]);
 
         if (search) {
@@ -77,7 +78,8 @@ export class CdpsService {
     async findOne(id: string) {
         const cdp = await this.repo
             .createQueryBuilder("cdp")
-            .leftJoin("cdp.project", "project")
+            .leftJoin("cdp.cdpProjects", "cdpProjects")
+            .leftJoin("cdpProjects.project", "project")
             .leftJoin("cdp.positions", "positions")
             .leftJoin("positions.rubric", "rubric")
             .addSelect([
