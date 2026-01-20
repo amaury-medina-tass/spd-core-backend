@@ -139,4 +139,49 @@ export class DetailedActivitiesService {
         }
         this.logger.error(error);
     }
+
+    async findForSelect(search?: string, limit: number = 30, offset: number = 0) {
+        const queryBuilder = this.detailedActivityRepository
+            .createQueryBuilder("detailedActivity")
+            .leftJoin("detailedActivity.project", "project")
+            .leftJoin("detailedActivity.rubric", "rubric")
+            .select([
+                "detailedActivity.id",
+                "detailedActivity.code",
+                "detailedActivity.name",
+                "detailedActivity.observations",
+                "detailedActivity.cpc",
+                "detailedActivity.budgetCeiling",
+                "detailedActivity.balance",
+                "detailedActivity.createAt",
+                "project.code",
+                "rubric.code"
+            ]);
+
+        if (search) {
+            queryBuilder.where(
+                new Brackets((qb) => {
+                    qb.where("detailedActivity.code ILIKE :search", { search: `%${search}%` })
+                        .orWhere("detailedActivity.name ILIKE :search", { search: `%${search}%` })
+                        .orWhere("project.code ILIKE :search", { search: `%${search}%` });
+                })
+            );
+        }
+
+        const [data, total] = await queryBuilder
+            .orderBy("detailedActivity.createAt", "DESC")
+            .skip(offset)
+            .take(limit)
+            .getManyAndCount();
+
+        return {
+            data,
+            meta: {
+                total,
+                limit,
+                offset,
+                hasMore: offset + data.length < total,
+            },
+        };
+    }
 }

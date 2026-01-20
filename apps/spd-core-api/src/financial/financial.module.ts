@@ -5,6 +5,7 @@ import { MasterContractsModule } from "./master-contracts/master-contracts.modul
 import { DependenciesModule } from "./dependencies/dependencies.module";
 import { ContractorsModule } from "./contractors/contractors.module";
 import { PreviousStudiesModule } from "./previous-studies/previous-studies.module";
+import { PoaiPpaModule } from "./poai-ppa/poai-ppa.module";
 
 @Module({
   imports: [
@@ -14,6 +15,8 @@ import { PreviousStudiesModule } from "./previous-studies/previous-studies.modul
     DependenciesModule,
     ContractorsModule,
     PreviousStudiesModule,
+    PoaiPpaModule,
   ],
 })
 export class FinancialModule { }
+

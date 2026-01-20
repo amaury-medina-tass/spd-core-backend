@@ -12,6 +12,19 @@ export class DetailedActivitiesController {
         return this.detailedActivitiesService.create(createDto);
     }
 
+    @Get("select")
+    findForSelect(
+        @Query("search") search?: string,
+        @Query("limit") limit?: number,
+        @Query("offset") offset?: number
+    ) {
+        return this.detailedActivitiesService.findForSelect(
+            search,
+            limit ? +limit : 30,
+            offset ? +offset : 0
+        );
+    }
+
     @Get()
     findAll(
         @Query("page") page: number,
