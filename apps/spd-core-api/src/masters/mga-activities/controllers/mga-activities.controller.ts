@@ -34,32 +34,19 @@ export class MgaActivitiesController {
         return this.mgaActivitiesService.findOne(id);
     }
 
-    @Get(":id/associated-activities")
-    getAssociatedActivities(
+    @Get(":id/detailed-activities")
+    getDetailedActivitiesForMga(
         @Param("id", ParseUUIDPipe) id: string,
+        @Query("type") type: "associated" | "available" | "all" = "all",
+        @Query("page") page?: number,
         @Query("limit") limit?: number,
-        @Query("offset") offset?: number,
         @Query("search") search?: string
     ) {
-        return this.mgaActivitiesService.getAssociatedActivities(
+        return this.mgaActivitiesService.getDetailedActivitiesForMga(
             id,
+            type || "all",
+            page ? +page : 1,
             limit ? +limit : 20,
-            offset ? +offset : 0,
-            search
-        );
-    }
-
-    @Get(":id/available-activities")
-    getAvailableActivities(
-        @Param("id", ParseUUIDPipe) id: string,
-        @Query("limit") limit?: number,
-        @Query("offset") offset?: number,
-        @Query("search") search?: string
-    ) {
-        return this.mgaActivitiesService.getAvailableActivities(
-            id,
-            limit ? +limit : 20,
-            offset ? +offset : 0,
             search
         );
     }

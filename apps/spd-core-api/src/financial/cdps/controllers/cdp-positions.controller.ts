@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../../../auth/guards/jwt-auth.guard";
 import { ResponseMessage } from "../../../common/decorators/response-message.decorator";
 import { CdpPositionsService } from "../services/cdp-positions.service";
@@ -48,5 +48,44 @@ export class CdpPositionsController {
         @Body("observations") observations: string
     ) {
         return this.service.updateObservations(id, observations);
+    }
+
+    // GET /financial/cdps/positions/:positionId/detailed-activities
+    @Get("positions/:positionId/detailed-activities")
+    @ResponseMessage("Actividades detalladas de la posición CDP")
+    getDetailedActivitiesForPosition(
+        @Param("positionId") positionId: string,
+        @Query("type") type: "associated" | "available" | "all" = "all",
+        @Query("page") page?: number,
+        @Query("limit") limit?: number,
+        @Query("search") search?: string
+    ) {
+        return this.service.getDetailedActivitiesForPosition(
+            positionId,
+            type || "all",
+            page ? +page : 1,
+            limit ? +limit : 20,
+            search
+        );
+    }
+
+    // POST /financial/cdps/positions/:positionId/detailed-activities
+    @Post("positions/:positionId/detailed-activities")
+    @ResponseMessage("Actividad asociada exitosamente")
+    associateActivity(
+        @Param("positionId") positionId: string,
+        @Body("detailedActivityId") detailedActivityId: string
+    ) {
+        return this.service.associateActivity(positionId, detailedActivityId);
+    }
+
+    // DELETE /financial/cdps/positions/:positionId/detailed-activities/:detailedActivityId
+    @Delete("positions/:positionId/detailed-activities/:detailedActivityId")
+    @ResponseMessage("Actividad desasociada exitosamente")
+    disassociateActivity(
+        @Param("positionId") positionId: string,
+        @Param("detailedActivityId") detailedActivityId: string
+    ) {
+        return this.service.disassociateActivity(positionId, detailedActivityId);
     }
 }

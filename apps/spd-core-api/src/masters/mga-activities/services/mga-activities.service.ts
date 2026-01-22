@@ -197,42 +197,61 @@ export class MgaActivitiesService {
         });
     }
 
-    async getAssociatedActivities(
+    async getDetailedActivitiesForMga(
         id: string,
+        type: "associated" | "available" | "all" = "all",
+        page: number = 1,
         limit: number = 20,
-        offset: number = 0,
         search?: string
     ) {
-        await this.findOne(id);
+        const mgaActivity = await this.findOne(id);
+        const skip = (page - 1) * limit;
 
-        const query = this.mgaDetailedRelationRepository
-            .createQueryBuilder("relation")
-            .leftJoinAndSelect("relation.detailedActivity", "detailedActivity")
-            .leftJoin("detailedActivity.rubric", "rubric")
-            .leftJoin("detailedActivity.project", "project")
-            .addSelect(["rubric.id", "rubric.code", "rubric.accountName", "project.id", "project.code", "project.name"])
-            .where("relation.mgaActivityId = :id", { id });
+        const associatedIds = (await this.mgaDetailedRelationRepository.find({
+            where: { mgaActivityId: id },
+            select: ["detailedActivityId"]
+        })).map(r => r.detailedActivityId);
+
+        const query = this.detailedActivityRepository.createQueryBuilder("da")
+            .leftJoin("da.rubric", "rubric")
+            .leftJoin("da.project", "project")
+            .addSelect(["da", "rubric.id", "rubric.code", "rubric.accountName", "project.id", "project.code", "project.name"])
+            .where("da.projectId = :projectId", { projectId: mgaActivity.projectId });
+
+        if (type === "associated") {
+            if (associatedIds.length === 0) {
+                return this.emptyPaginatedResponse(page, limit);
+            }
+            query.andWhere("da.id IN (:...ids)", { ids: associatedIds });
+        } else if (type === "available") {
+            if (associatedIds.length > 0) {
+                query.andWhere("da.id NOT IN (:...ids)", { ids: associatedIds });
+            }
+        }
 
         if (search) {
             query.andWhere(new Brackets((qb) => {
-                qb.where("detailedActivity.code ILIKE :search", { search: `%${search}%` })
-                    .orWhere("detailedActivity.name ILIKE :search", { search: `%${search}%` })
+                qb.where("da.code ILIKE :search", { search: `%${search}%` })
+                    .orWhere("da.name ILIKE :search", { search: `%${search}%` })
                     .orWhere("rubric.code ILIKE :search", { search: `%${search}%` })
                     .orWhere("project.code ILIKE :search", { search: `%${search}%` });
             }));
         }
 
-        const [relations, total] = await query
-            .skip(offset)
+        const [data, total] = await query
+            .orderBy("da.code", "ASC")
+            .skip(skip)
             .take(limit)
             .getManyAndCount();
 
-        const data = relations.map(r => r.detailedActivity);
-        const page = Math.floor(offset / limit) + 1;
         const totalPages = Math.ceil(total / limit);
 
+        const enrichedData = type === "all"
+            ? data.map(item => ({ ...item, isAssociated: associatedIds.includes(item.id) }))
+            : data;
+
         return {
-            data,
+            data: enrichedData,
             meta: {
                 total,
                 page,
@@ -244,55 +263,16 @@ export class MgaActivitiesService {
         };
     }
 
-    async getAvailableActivities(
-        id: string,
-        limit: number = 20,
-        offset: number = 0,
-        search?: string
-    ) {
-        await this.findOne(id);
-
-        const associatedIds = (await this.mgaDetailedRelationRepository.find({
-            where: { mgaActivityId: id },
-            select: ["detailedActivityId"]
-        })).map(r => r.detailedActivityId);
-
-        const query = this.detailedActivityRepository.createQueryBuilder("da")
-            .leftJoin("da.rubric", "rubric")
-            .leftJoin("da.project", "project")
-            .addSelect(["da", "rubric.id", "rubric.code", "rubric.accountName", "project.id", "project.code", "project.name"]);
-
-        if (associatedIds.length > 0) {
-            query.where("da.id NOT IN (:...ids)", { ids: associatedIds });
-        }
-
-        if (search) {
-            const searchMethod = associatedIds.length > 0 ? "andWhere" : "where";
-            query[searchMethod](new Brackets((qb) => {
-                qb.where("da.code ILIKE :search", { search: `%${search}%` })
-                    .orWhere("da.name ILIKE :search", { search: `%${search}%` })
-                    .orWhere("rubric.code ILIKE :search", { search: `%${search}%` })
-                    .orWhere("project.code ILIKE :search", { search: `%${search}%` });
-            }));
-        }
-
-        const [data, total] = await query
-            .skip(offset)
-            .take(limit)
-            .getManyAndCount();
-
-        const page = Math.floor(offset / limit) + 1;
-        const totalPages = Math.ceil(total / limit);
-
+    private emptyPaginatedResponse(page: number, limit: number) {
         return {
-            data,
+            data: [],
             meta: {
-                total,
+                total: 0,
                 page,
                 limit,
-                totalPages,
-                hasNextPage: page < totalPages,
-                hasPreviousPage: page > 1
+                totalPages: 0,
+                hasNextPage: false,
+                hasPreviousPage: false
             }
         };
     }
