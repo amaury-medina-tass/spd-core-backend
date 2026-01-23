@@ -8,4 +8,7 @@ export class UpdateMgaActivityDto {
     @IsString()
     @IsOptional()
     observations?: string;
+
+    @IsOptional()
+    activityDate?: Date;
 }

@@ -42,6 +42,7 @@ export class DetailedActivitiesService {
             "code",
             "name",
             "observations",
+            "activityDate",
             "budgetCeiling",
             "balance",
             "cpc",
@@ -64,6 +65,7 @@ export class DetailedActivitiesService {
                 qb.where("detailedActivity.code LIKE :search", { search: `%${search}%` })
                     .orWhere("detailedActivity.name LIKE :search", { search: `%${search}%` })
                     .orWhere("detailedActivity.observations LIKE :search", { search: `%${search}%` })
+                    .orWhere("detailedActivity.activityDate::text LIKE :search", { search: `%${search}%` })
                     .orWhere("project.code LIKE :search", { search: `%${search}%` })
                     .orWhere("project.name LIKE :search", { search: `%${search}%` })
                     .orWhere("rubric.code LIKE :search", { search: `%${search}%` })

@@ -67,22 +67,35 @@ export class MgaActivitiesService {
             "product.productName",
             "product.indicatorName",
         ];
+        // Si el usuario pide ordenar por valor o saldo, lo manejaremos en el QueryBuilder
+        // Nota: "value" y "balance" son campos calculados
         const validSortBy =
-            sortBy && sortableFields.includes(sortBy) ? sortBy : "createAt";
+            sortBy && (sortableFields.includes(sortBy) || sortBy === "value" || sortBy === "balance") ? sortBy : "createAt";
 
         const queryBuilder = this.mgaActivityRepository
             .createQueryBuilder("mgaActivity")
             .leftJoin("mgaActivity.project", "project")
             .leftJoin("mgaActivity.product", "product")
-            .addSelect([
-                "mgaActivity",
+            // Joins para calcular totales
+            .leftJoin("mgaActivity.detailedRelations", "rel")
+            .leftJoin("rel.detailedActivity", "da")
+            .select([
+                "mgaActivity.id", "mgaActivity.code", "mgaActivity.name",
+                "mgaActivity.observations", "mgaActivity.createAt", "mgaActivity.updateAt",
                 "project.id", "project.code", "project.name",
                 "product.id", "product.productCode", "product.productName"
             ])
+            // Agregaciones para valor y saldo
+            .addSelect("COALESCE(SUM(da.budget_ceiling), 0)", "totalValue")
+            .addSelect("COALESCE(SUM(da.balance), 0)", "totalBalance")
+            .groupBy("mgaActivity.id")
+            .addGroupBy("project.id")
+            .addGroupBy("product.id")
+
             .loadRelationCountAndMap("mgaActivity.detailedActivitiesCount", "mgaActivity.detailedRelations");
 
         if (search) {
-            queryBuilder.where(new Brackets((qb) => {
+            queryBuilder.andWhere(new Brackets((qb) => {
                 qb.where("mgaActivity.code ILIKE :search", { search: `%${search}%` })
                     .orWhere("mgaActivity.name ILIKE :search", { search: `%${search}%` })
                     .orWhere("mgaActivity.observations ILIKE :search", { search: `%${search}%` })
@@ -94,21 +107,87 @@ export class MgaActivitiesService {
             }));
         }
 
-        if (validSortBy.includes(".")) {
+        // Manejo del ordenamiento
+        if (validSortBy === "value") {
+            queryBuilder.orderBy("totalValue", validSortOrder);
+        } else if (validSortBy === "balance") {
+            queryBuilder.orderBy("totalBalance", validSortOrder);
+        } else if (validSortBy.includes(".")) {
             const [relation, field] = validSortBy.split(".");
             queryBuilder.orderBy(`${relation}.${field}`, validSortOrder);
         } else {
             queryBuilder.orderBy(`mgaActivity.${validSortBy}`, validSortOrder);
         }
 
-        queryBuilder.skip(skip).take(limit);
+        queryBuilder.offset(skip).limit(limit);
 
-        const [data, total] = await queryBuilder.getManyAndCount();
+        // Usamos getRawMany para obtener los valores calculados
+        const rawData = await queryBuilder.getRawMany();
+
+        // Necesitamos el conteo total para la paginación. 
+        // Como usamos GROUP BY, getCount() puede no ser preciso directamenet, 
+        // pero en versiones recientes de TypeORM suele manejarlo. 
+        // Hacemos una query separada por seguridad y limpieza con los joins de agregación.
+        const countQuery = this.mgaActivityRepository.createQueryBuilder("mgaActivity")
+            .leftJoin("mgaActivity.project", "project")
+            .leftJoin("mgaActivity.product", "product");
+
+        if (search) {
+            countQuery.where(new Brackets((qb) => {
+                qb.where("mgaActivity.code ILIKE :search", { search: `%${search}%` })
+                    .orWhere("mgaActivity.name ILIKE :search", { search: `%${search}%` })
+                    .orWhere("mgaActivity.observations ILIKE :search", { search: `%${search}%` })
+                    .orWhere("project.code ILIKE :search", { search: `%${search}%` })
+                    .orWhere("project.name ILIKE :search", { search: `%${search}%` })
+                    .orWhere("product.productCode ILIKE :search", { search: `%${search}%` })
+                    .orWhere("product.productName ILIKE :search", { search: `%${search}%` })
+                    .orWhere("product.indicatorName ILIKE :search", { search: `%${search}%` });
+            }));
+        }
+
+        const total = await countQuery.getCount();
+
+        // Mapeamos los resultados raw a la estructura esperada
+        // Nota: getRawMany aplana la estructura, así que reconstruimos los objetos
+        const data = rawData.map(row => ({
+            id: row.mgaActivity_id,
+            code: row.mgaActivity_code,
+            name: row.mgaActivity_name,
+            observations: row.mgaActivity_observations,
+            activityDate: row.mgaActivity_activity_date,
+            createAt: row.mgaActivity_create_at,
+            updateAt: row.mgaActivity_update_at,
+            detailedActivitiesCount: 0, // Se perderá el loadRelationCountAndMap con getRawMany, podemos hacer count o dejarlo si no es crítico, o re-calcular
+            project: {
+                id: row.project_id,
+                code: row.project_code,
+                name: row.project_name
+            },
+            product: {
+                id: row.product_id,
+                productCode: row.product_product_code,
+                productName: row.product_product_name
+            },
+            value: Number(row.totalValue),
+            balance: Number(row.totalBalance)
+        }));
+
+        // Recuperar el count de relaciones detalladas que se pierde con getRawMany
+        // Una opción eficiente es hacerlo en la misma query con COUNT(DISTINCT rel.id)
+        // Ajustamos la query principal para incluirlo
+
+        // RE-AJUSTE PARA INCLUIR COUNT DE DETALLES Y MANTENER LA ESTRUCTURA DE RESPUESTA
+        const finalData = await Promise.all(data.map(async (item) => {
+            const count = await this.mgaDetailedRelationRepository.count({ where: { mgaActivityId: item.id } });
+            item.detailedActivitiesCount = count;
+            return item;
+        }));
+
 
         const totalPages = Math.ceil(total / limit);
 
         return {
-            data,
+            data: finalData,
             meta: {
                 total,
                 page,

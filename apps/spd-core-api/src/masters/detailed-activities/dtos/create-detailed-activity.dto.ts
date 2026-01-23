@@ -13,6 +13,9 @@ export class CreateDetailedActivityDto {
     @IsOptional()
     observations?: string;
 
+    @IsOptional()
+    activityDate?: Date;
+
     @IsNumber()
     @IsOptional()
     budgetCeiling?: number;

@@ -37,8 +37,18 @@ export class CdpPositionsController {
 
     @Get("positions/:id")
     @ResponseMessage("Detalle de la posición CDP")
-    findOne(@Param("id") id: string) {
-        return this.service.findOne(id);
+    findOne(
+        @Param("id") id: string,
+        @Query("activityPage") activityPage?: number,
+        @Query("activityLimit") activityLimit?: number,
+        @Query("activitySearch") activitySearch?: string
+    ) {
+        return this.service.findOne(
+            id,
+            activityPage ? +activityPage : 1,
+            activityLimit ? +activityLimit : 10,
+            activitySearch
+        );
     }
 
     @Patch("positions/:id/observations")

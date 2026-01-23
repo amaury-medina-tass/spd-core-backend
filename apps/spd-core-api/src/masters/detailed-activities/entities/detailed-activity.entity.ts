@@ -26,6 +26,9 @@ export class DetailedActivity {
     @Column({ type: "text", nullable: true })
     observations?: string;
 
+    @Column({ name: "activity_date", type: "timestamp", nullable: true })
+    activityDate?: Date;
+
     @Column({ name: "budget_ceiling", type: "numeric", precision: 18, scale: 2, default: 0 })
     budgetCeiling?: number;
 

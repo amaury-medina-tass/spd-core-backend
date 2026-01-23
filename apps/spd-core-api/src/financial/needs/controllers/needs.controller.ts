@@ -30,4 +30,24 @@ export class NeedsController {
     findOne(@Param("id") id: string) {
         return this.service.findOne(id);
     }
+
+    @Get(":id/cdp-positions")
+    @ResponseMessage("Posiciones CDP asociadas a la necesidad")
+    getCdpPositionsByNeedId(
+        @Param("id") id: string,
+        @Query("page") page: number,
+        @Query("limit") limit: number,
+        @Query("search") search: string,
+        @Query("sortBy") sortBy: string,
+        @Query("sortOrder") sortOrder: "ASC" | "DESC"
+    ) {
+        return this.service.findCdpPositionsByNeedId(
+            id,
+            page ? +page : 1,
+            limit ? +limit : 10,
+            search,
+            sortBy,
+            sortOrder
+        );
+    }
 }

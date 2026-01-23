@@ -84,29 +84,29 @@ export class CdpPositionsService {
             // JOIN 6: Contract Positions (Fondo)
             .leftJoin("contract_positions", "cp", "cp.cdp_funding_id = cpf.id")
             .leftJoin("funding_sources", "fs", "cp.funding_source_id = fs.id")
-            
+
             .select([
                 "pos.id AS \"id\"",
                 "pos.position_number AS \"positionNumber\"",
                 "pos.value AS \"positionValue\"",
                 "pos.observations AS \"observations\"",
-                
+
                 "cdp.number AS \"cdpNumber\"",
                 "cdp.total_value AS \"cdpTotalValue\"",
-                
+
                 "r.code AS \"rubricCode\"",
                 "n.code AS \"needCode\"",
 
                 // AGREGACIONES PARA EVITAR DUPLICADOS
-                "MAX(p.code) AS \"projectCode\"", 
-                
+                "MAX(p.code) AS \"projectCode\"",
+
                 // Si hay múltiples fuentes de financiación, las concatenamos
                 "STRING_AGG(DISTINCT fs.name, ', ') AS \"fundingSourceName\"",
                 "STRING_AGG(DISTINCT fs.code, ', ') AS \"fundingSourceCode\""
             ])
             // AGRUPAMIENTO OBLIGATORIO PARA COLAPSAR FILAS REPETIDAS
             .groupBy("pos.id")
-            .addGroupBy("cdp.id") 
+            .addGroupBy("cdp.id")
             .addGroupBy("cdp.number")
             .addGroupBy("cdp.total_value")
             .addGroupBy("r.code")
@@ -186,7 +186,12 @@ export class CdpPositionsService {
         };
     }
 
-    async findOne(id: string) {
+    async findOne(
+        id: string,
+        activityPage: number = 1,
+        activityLimit: number = 10,
+        activitySearch?: string
+    ) {
         const queryBuilder = this.repo
             .createQueryBuilder("pos")
             .innerJoin("pos.cdp", "cdp")
@@ -233,6 +238,70 @@ export class CdpPositionsService {
             .where("cpf.cdp_position_id = :id", { id })
             .getRawOne();
 
+        // Query para obtener el consumo desglosado por cada actividad con paginación y búsqueda
+        const activitySkip = (activityPage - 1) * activityLimit;
+
+        const activityQuery = this.fundingRepo
+            .createQueryBuilder("cpf")
+            .leftJoin("detailed_activities", "da", "cpf.detailed_activity_id = da.id")
+            .leftJoin("projects", "p", "da.project_id = p.id")
+            .select([
+                "cpf.id AS \"id\"",
+                "cpf.detailed_activity_id AS \"detailedActivityId\"",
+                "da.code AS \"activityCode\"",
+                "da.name AS \"activityName\"",
+                "p.code AS \"projectCode\"",
+                "COALESCE(cpf.assigned_value, 0) AS \"assignedValue\"",
+                "COALESCE(cpf.balance, 0) AS \"balance\""
+            ])
+            .where("cpf.cdp_position_id = :id", { id });
+
+        // Aplicar búsqueda si existe
+        if (activitySearch) {
+            activityQuery.andWhere(new Brackets((qb) => {
+                qb.where("da.code ILIKE :search", { search: `%${activitySearch}%` })
+                    .orWhere("da.name ILIKE :search", { search: `%${activitySearch}%` })
+                    .orWhere("p.code ILIKE :search", { search: `%${activitySearch}%` });
+            }));
+        }
+
+        // Obtener el total para paginación
+        const activityCountQuery = this.fundingRepo
+            .createQueryBuilder("cpf")
+            .leftJoin("detailed_activities", "da", "cpf.detailed_activity_id = da.id")
+            .leftJoin("projects", "p", "da.project_id = p.id")
+            .select("COUNT(cpf.id)", "count")
+            .where("cpf.cdp_position_id = :id", { id });
+
+        if (activitySearch) {
+            activityCountQuery.andWhere(new Brackets((qb) => {
+                qb.where("da.code ILIKE :search", { search: `%${activitySearch}%` })
+                    .orWhere("da.name ILIKE :search", { search: `%${activitySearch}%` })
+                    .orWhere("p.code ILIKE :search", { search: `%${activitySearch}%` });
+            }));
+        }
+
+        const activityCountResult = await activityCountQuery.getRawOne();
+        const activityTotal = activityCountResult ? parseInt(activityCountResult.count, 10) : 0;
+
+        const consumedByActivityResult = await activityQuery
+            .orderBy("da.code", "ASC")
+            .offset(activitySkip)
+            .limit(activityLimit)
+            .getRawMany();
+
+        const consumedByActivityData = consumedByActivityResult.map(item => ({
+            id: item.id,
+            detailedActivityId: item.detailedActivityId,
+            activityCode: item.activityCode,
+            activityName: item.activityName,
+            projectCode: item.projectCode,
+            assignedValue: Number(item.assignedValue) || 0,
+            balance: Number(item.balance) || 0,
+        }));
+
+        const activityTotalPages = Math.ceil(activityTotal / activityLimit);
+
         return {
             id: row.id,
             projectCode: row.projectCode,
@@ -246,6 +315,17 @@ export class CdpPositionsService {
             fundingSourceCode: row.fundingSourceCode || null,
             observations: row.observations,
             totalConsumed: consumedResult?.totalConsumed ? Number(consumedResult.totalConsumed) : 0,
+            consumedByActivity: {
+                data: consumedByActivityData,
+                meta: {
+                    total: activityTotal,
+                    page: activityPage,
+                    limit: activityLimit,
+                    totalPages: activityTotalPages,
+                    hasNextPage: activityPage < activityTotalPages,
+                    hasPreviousPage: activityPage > 1,
+                }
+            },
         };
     }
 
@@ -253,7 +333,7 @@ export class CdpPositionsService {
         // We can just get the entity directly for update to be efficient
         const position = await this.repo.findOne({ where: { id } });
         if (!position) throw new NotFoundException("Posición de CDP no encontrada");
-        
+
         position.observations = observations;
         return this.repo.save(position);
     }
