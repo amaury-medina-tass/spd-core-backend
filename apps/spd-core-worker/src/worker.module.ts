@@ -13,6 +13,25 @@ import { OutboxProcessor } from "./outbox/outbox.processor";
 import { OutboxPublisher } from "./outbox/outbox.publisher";
 import { SapSyncProcessor } from "./sap-sync/sap-sync.processor";
 import { SapApiService } from "./sap-sync/sap-api.service";
+import { SapSyncService } from "./sap-sync/sap-sync.service";
+
+// Entidades usadas por SapSyncService
+import { Dependency } from "../../spd-core-api/src/financial/dependencies/entities/dependency.entity";
+import { Contractor } from "../../spd-core-api/src/financial/contractors/entities/contractor.entity";
+import { FundingSource } from "../../spd-core-api/src/financial/funding-sources/entities/funding-source.entity";
+import { Rubric } from "../../spd-core-api/src/masters/rubrics/entities/rubric.entity";
+import { Project } from "../../spd-core-api/src/financial/projects/entities/project.entity";
+import { PreviousStudy } from "../../spd-core-api/src/financial/previous-studies/entities/previous-study.entity";
+import { Need } from "../../spd-core-api/src/financial/needs/entities/need.entity";
+import { Cdp } from "../../spd-core-api/src/financial/cdps/entities/cdp.entity";
+import { CdpProject } from "../../spd-core-api/src/financial/cdps/entities/cdp-project.entity";
+import { CdpPosition } from "../../spd-core-api/src/financial/cdps/entities/cdp-position.entity";
+import { CdpPositionFunding } from "../../spd-core-api/src/financial/cdps/entities/cdp-position-funding.entity";
+import { MasterContract } from "../../spd-core-api/src/financial/master-contracts/entities/master-contract.entity";
+import { ContractCdpRelation } from "../../spd-core-api/src/financial/contract-cdp-relations/entities/contract-cdp-relation.entity";
+import { ContractPosition } from "../../spd-core-api/src/financial/contract-positions/entities/contract-position.entity";
+import { BudgetRecord } from "../../spd-core-api/src/financial/budget-records/entities/budget-record.entity";
+import { DetailedActivity } from "../../spd-core-api/src/masters/detailed-activities/entities/detailed-activity.entity";
 
 @Module({
   imports: [
@@ -23,8 +42,27 @@ import { SapApiService } from "./sap-sync/sap-api.service";
     }),
     ScheduleModule.forRoot(),
     DatabaseModule,
-    TypeOrmModule.forFeature([OutboxMessage]),
+    TypeOrmModule.forFeature([
+      OutboxMessage,
+      // Entidades para sincronización SAP
+      Dependency,
+      Contractor,
+      FundingSource,
+      Rubric,
+      Project,
+      PreviousStudy,
+      Need,
+      Cdp,
+      CdpProject,
+      CdpPosition,
+      CdpPositionFunding,
+      MasterContract,
+      ContractCdpRelation,
+      ContractPosition,
+      BudgetRecord,
+      DetailedActivity,
+    ]),
   ],
-  providers: [OutboxPublisher, OutboxProcessor, SapSyncProcessor, SapApiService],
+  providers: [OutboxPublisher, OutboxProcessor, SapSyncProcessor, SapApiService, SapSyncService],
 })
-export class WorkerModule {}
+export class WorkerModule { }

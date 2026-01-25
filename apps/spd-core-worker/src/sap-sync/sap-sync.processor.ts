@@ -1,9 +1,10 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
 import { InjectRepository } from "@nestjs/typeorm";
-import { DataSource, Repository } from "typeorm";
+import { IsNull, Repository } from "typeorm";
 import { OutboxMessage } from "@common/entities/outbox-message.entity";
 import { SapApiService } from "./sap-api.service";
+import { SapSyncService } from "./sap-sync.service";
 
 const SAP_SYNC_EVENT_NAME = "sap.sync.requested";
 
@@ -11,37 +12,48 @@ const SAP_SYNC_EVENT_NAME = "sap.sync.requested";
 export class SapSyncProcessor {
   private readonly logger = new Logger(SapSyncProcessor.name);
   private readonly MAX_ATTEMPTS = 5;
+  private isProcessing = false; // Evitar procesamiento concurrente
 
   constructor(
     @InjectRepository(OutboxMessage)
     private readonly outbox: Repository<OutboxMessage>,
     private readonly sapApi: SapApiService,
-    private readonly dataSource: DataSource
-  ) {}
+    private readonly sapSyncService: SapSyncService
+  ) { }
 
   /**
    * Cada 10 segundos busca jobs de sincronización SAP pendientes y los procesa.
    */
   @Cron("*/10 * * * * *")
   async processSyncJobs() {
-    const jobs = await this.outbox.find({
-      where: {
-        name: SAP_SYNC_EVENT_NAME,
-        processed_at: undefined,
-      },
-      order: { occurred_at: "ASC" },
-      take: 1, // Procesar uno a la vez para evitar saturar SAP
-    });
+    // Evitar que múltiples ejecuciones del cron se solapen
+    if (this.isProcessing) {
+      return;
+    }
 
-    for (const job of jobs) {
-      if ((job.attempts ?? 0) >= this.MAX_ATTEMPTS) {
-        this.logger.warn(
-          `Saltando job ${job.id}: máximo de intentos alcanzado (${job.attempts})`
-        );
-        continue;
+    this.isProcessing = true;
+    try {
+      const jobs = await this.outbox.find({
+        where: {
+          name: SAP_SYNC_EVENT_NAME,
+          processed_at: IsNull(), // ✅ Usar IsNull() de TypeORM en lugar de undefined
+        },
+        order: { occurred_at: "ASC" },
+        take: 1, // Procesar uno a la vez para evitar saturar SAP
+      });
+
+      for (const job of jobs) {
+        if ((job.attempts ?? 0) >= this.MAX_ATTEMPTS) {
+          this.logger.warn(
+            `Saltando job ${job.id}: máximo de intentos alcanzado (${job.attempts})`
+          );
+          continue;
+        }
+
+        await this.processJob(job);
       }
-
-      await this.processJob(job);
+    } finally {
+      this.isProcessing = false;
     }
   }
 
@@ -72,8 +84,8 @@ export class SapSyncProcessor {
         return;
       }
 
-      // 2. Llamar al SP con los datos
-      await this.callStoredProcedure(sapData);
+      // 2. Sincronizar usando TypeORM
+      await this.sapSyncService.processSapItems(sapData.items);
 
       // 3. Marcar como procesado
       await this.markAsProcessed(job);
@@ -90,22 +102,6 @@ export class SapSyncProcessor {
       job.updated_at = new Date();
       await this.outbox.save(job);
     }
-  }
-
-  /**
-   * Ejecuta el stored procedure SP_SYNCHRONIZE_SAP_DG con los datos de SAP.
-   */
-  private async callStoredProcedure(data: { items: any[] }) {
-    this.logger.log("Ejecutando SP_SYNCHRONIZE_SAP_DG...");
-
-    const jsonParam = JSON.stringify(data);
-
-    await this.dataSource.query(
-      `CALL sicgem_app."SP_SYNCHRONIZE_SAP_DG"($1::jsonb)`,
-      [jsonParam]
-    );
-
-    this.logger.log("SP_SYNCHRONIZE_SAP_DG ejecutado exitosamente");
   }
 
   private async markAsProcessed(job: OutboxMessage) {

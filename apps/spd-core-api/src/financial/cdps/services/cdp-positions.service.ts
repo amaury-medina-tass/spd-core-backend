@@ -72,18 +72,18 @@ export class CdpPositionsService {
             .innerJoin("pos.cdp", "cdp")
             // JOIN 2: Rubro
             .leftJoin("pos.rubric", "r")
-            // JOIN 3: Financiación (Aquí nace el duplicado, por eso necesitamos GroupBy)
-            .leftJoin("cdp_position_funding", "cpf", "cpf.cdp_position_id = pos.id")
-            // JOIN 4: Actividad y Proyecto
-            .leftJoin("detailed_activities", "da", "cpf.detailed_activity_id = da.id")
-            .leftJoin("projects", "p", "da.project_id = p.id")
+
+            // CAMBIO CLAVE 1: Traemos el contrato usando el ID de la POSICIÓN (no del funding)
+            .leftJoin("contract_positions", "cp", "cp.cdp_position_id = pos.id")
+
+            // CAMBIO CLAVE 2: Sacamos Proyecto y Fondo directamente del contrato
+            .leftJoin("projects", "p", "cp.project_id = p.id")
+            .leftJoin("funding_sources", "fs", "cp.funding_source_id = fs.id")
+
             // JOIN 5: Puente al Contrato (Necesidad)
             .leftJoin("contract_cdp_relations", "ccr", "ccr.cdp_id = cdp.id")
             .leftJoin("master_contracts", "mc", "ccr.contract_id = mc.id")
             .leftJoin("needs", "n", "mc.need_id = n.id")
-            // JOIN 6: Contract Positions (Fondo)
-            .leftJoin("contract_positions", "cp", "cp.cdp_funding_id = cpf.id")
-            .leftJoin("funding_sources", "fs", "cp.funding_source_id = fs.id")
 
             .select([
                 "pos.id AS \"id\"",
@@ -128,9 +128,8 @@ export class CdpPositionsService {
             .createQueryBuilder("pos")
             .innerJoin("pos.cdp", "cdp")
             .leftJoin("pos.rubric", "r")
-            .leftJoin("cdp_position_funding", "cpf", "cpf.cdp_position_id = pos.id")
-            .leftJoin("detailed_activities", "da", "cpf.detailed_activity_id = da.id")
-            .leftJoin("projects", "p", "da.project_id = p.id")
+            .leftJoin("contract_positions", "cp", "cp.cdp_position_id = pos.id")
+            .leftJoin("projects", "p", "cp.project_id = p.id")
             .leftJoin("contract_cdp_relations", "ccr", "ccr.cdp_id = cdp.id")
             .leftJoin("master_contracts", "mc", "ccr.contract_id = mc.id")
             .leftJoin("needs", "n", "mc.need_id = n.id")

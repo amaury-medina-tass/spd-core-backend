@@ -30,8 +30,18 @@ export class MgaActivitiesController {
     }
 
     @Get(":id")
-    findOne(@Param("id", ParseUUIDPipe) id: string) {
-        return this.mgaActivitiesService.findOne(id);
+    findOne(
+        @Param("id", ParseUUIDPipe) id: string,
+        @Query("activityPage") activityPage?: number,
+        @Query("activityLimit") activityLimit?: number,
+        @Query("activitySearch") activitySearch?: string
+    ) {
+        return this.mgaActivitiesService.findOne(
+            id,
+            activityPage ? +activityPage : 1,
+            activityLimit ? +activityLimit : 10,
+            activitySearch
+        );
     }
 
     @Get(":id/detailed-activities")

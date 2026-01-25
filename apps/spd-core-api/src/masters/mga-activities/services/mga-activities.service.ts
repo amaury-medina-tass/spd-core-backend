@@ -199,7 +199,12 @@ export class MgaActivitiesService {
         };
     }
 
-    async findOne(id: string): Promise<MgaActivity> {
+    async findOne(
+        id: string,
+        activityPage: number = 1,
+        activityLimit: number = 10,
+        activitySearch?: string
+    ) {
         const mgaActivity = await this.mgaActivityRepository
             .createQueryBuilder("mgaActivity")
             .leftJoin("mgaActivity.project", "project")
@@ -217,10 +222,115 @@ export class MgaActivitiesService {
             throw new NotFoundException(`MGA Activity with id ${id} not found`);
         }
 
-        return mgaActivity;
+        // Calcular valor y saldo totales
+        const totalsResult = await this.mgaDetailedRelationRepository
+            .createQueryBuilder("rel")
+            .leftJoin("detailed_activities", "da", "rel.detailed_activity_id = da.id")
+            .select([
+                "COALESCE(SUM(da.budget_ceiling), 0) AS \"totalValue\"",
+                "COALESCE(SUM(da.balance), 0) AS \"totalBalance\""
+            ])
+            .where("rel.mga_activity_id = :id", { id })
+            .getRawOne();
+
+        // Query para obtener las actividades detalladas paginadas
+        const activitySkip = (activityPage - 1) * activityLimit;
+
+        const activityQuery = this.mgaDetailedRelationRepository
+            .createQueryBuilder("rel")
+            .leftJoin("detailed_activities", "da", "rel.detailed_activity_id = da.id")
+            .leftJoin("rubrics", "r", "da.rubric_id = r.id")
+            .leftJoin("projects", "p", "da.project_id = p.id")
+            .select([
+                "rel.id AS \"id\"",
+                "da.id AS \"detailedActivityId\"",
+                "da.code AS \"activityCode\"",
+                "da.name AS \"activityName\"",
+                "p.code AS \"projectCode\"",
+                "r.code AS \"rubricCode\"",
+                "COALESCE(da.budget_ceiling, 0) AS \"value\"",
+                "COALESCE(da.balance, 0) AS \"balance\""
+            ])
+            .where("rel.mga_activity_id = :id", { id });
+
+        // Aplicar búsqueda si existe
+        if (activitySearch) {
+            activityQuery.andWhere(new Brackets((qb) => {
+                qb.where("da.code ILIKE :search", { search: `%${activitySearch}%` })
+                    .orWhere("da.name ILIKE :search", { search: `%${activitySearch}%` })
+                    .orWhere("r.code ILIKE :search", { search: `%${activitySearch}%` })
+                    .orWhere("p.code ILIKE :search", { search: `%${activitySearch}%` });
+            }));
+        }
+
+        // Obtener el total para paginación
+        const activityCountQuery = this.mgaDetailedRelationRepository
+            .createQueryBuilder("rel")
+            .leftJoin("detailed_activities", "da", "rel.detailed_activity_id = da.id")
+            .leftJoin("rubrics", "r", "da.rubric_id = r.id")
+            .leftJoin("projects", "p", "da.project_id = p.id")
+            .select("COUNT(rel.id)", "count")
+            .where("rel.mga_activity_id = :id", { id });
+
+        if (activitySearch) {
+            activityCountQuery.andWhere(new Brackets((qb) => {
+                qb.where("da.code ILIKE :search", { search: `%${activitySearch}%` })
+                    .orWhere("da.name ILIKE :search", { search: `%${activitySearch}%` })
+                    .orWhere("r.code ILIKE :search", { search: `%${activitySearch}%` })
+                    .orWhere("p.code ILIKE :search", { search: `%${activitySearch}%` });
+            }));
+        }
+
+        const activityCountResult = await activityCountQuery.getRawOne();
+        const activityTotal = activityCountResult ? parseInt(activityCountResult.count, 10) : 0;
+
+        const detailedActivitiesResult = await activityQuery
+            .orderBy("da.code", "ASC")
+            .offset(activitySkip)
+            .limit(activityLimit)
+            .getRawMany();
+
+        const detailedActivitiesData = detailedActivitiesResult.map(item => ({
+            id: item.id,
+            detailedActivityId: item.detailedActivityId,
+            activityCode: item.activityCode,
+            activityName: item.activityName,
+            projectCode: item.projectCode,
+            rubricCode: item.rubricCode,
+            value: Number(item.value) || 0,
+            balance: Number(item.balance) || 0,
+        }));
+
+        const activityTotalPages = Math.ceil(activityTotal / activityLimit);
+
+        return {
+            id: mgaActivity.id,
+            code: mgaActivity.code,
+            name: mgaActivity.name,
+            observations: mgaActivity.observations,
+            activityDate: mgaActivity.activityDate,
+            createAt: mgaActivity.createAt,
+            updateAt: mgaActivity.updateAt,
+            project: mgaActivity.project,
+            product: mgaActivity.product,
+            detailedActivitiesCount: activityTotal,
+            value: Number(totalsResult?.totalValue) || 0,
+            balance: Number(totalsResult?.totalBalance) || 0,
+            detailedActivities: {
+                data: detailedActivitiesData,
+                meta: {
+                    total: activityTotal,
+                    page: activityPage,
+                    limit: activityLimit,
+                    totalPages: activityTotalPages,
+                    hasNextPage: activityPage < activityTotalPages,
+                    hasPreviousPage: activityPage > 1,
+                }
+            },
+        };
     }
 
-    async update(id: string, updateDto: UpdateMgaActivityDto): Promise<MgaActivity> {
+    async update(id: string, updateDto: UpdateMgaActivityDto) {
         const mgaActivity = await this.mgaActivityRepository.preload({
             id: id,
             ...updateDto,
@@ -295,7 +405,7 @@ export class MgaActivitiesService {
             .leftJoin("da.rubric", "rubric")
             .leftJoin("da.project", "project")
             .addSelect(["da", "rubric.id", "rubric.code", "rubric.accountName", "project.id", "project.code", "project.name"])
-            .where("da.projectId = :projectId", { projectId: mgaActivity.projectId });
+            .where("da.projectId = :projectId", { projectId: mgaActivity.project?.id });
 
         if (type === "associated") {
             if (associatedIds.length === 0) {

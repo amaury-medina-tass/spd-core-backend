@@ -16,4 +16,9 @@ export default () => ({
     topic: process.env.SERVICEBUS_TOPIC ?? "spd.events",
     subjectPrefix: process.env.SERVICEBUS_SUBJECT_PREFIX ?? "SpdCore.",
   },
+
+  sap: {
+    url: process.env.SAP_URL ?? "",
+    auth: process.env.SAP_AUTH ?? "",
+  },
 });

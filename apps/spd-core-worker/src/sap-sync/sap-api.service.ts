@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { XMLParser } from "fast-xml-parser";
+import { MOCK_SAP_XML } from "./mock-sap";
 
 export interface SapContract {
   numContrato: string;
@@ -56,12 +57,8 @@ export class SapApiService {
   private readonly sapAuth: string;
 
   constructor(private cfg: ConfigService) {
-    this.sapUrl =
-      this.cfg.get<string>("sap.url") ??
-      "http://spodev.medellin.gov.co:50000/XISOAPAdapter/MessageServlet?senderParty=&senderService=BC_SICGEM&receiverParty=&receiverService=&interface=SI_Contratos_Out&interfaceNamespace=urn%3A%2F%2Fmedellin.gov.co%3ASICGEM%3AConsultaContratos";
-
-    this.sapAuth =
-      this.cfg.get<string>("sap.auth") ?? "Basic V1NfU0lDR0VNOlMxQ011SjNyLjIy";
+    this.sapUrl = this.cfg.get<string>("sap.url") ?? "";
+    this.sapAuth = this.cfg.get<string>("sap.auth") ?? "";
 
     this.xmlParser = new XMLParser({
       ignoreAttributes: true,
@@ -81,9 +78,11 @@ export class SapApiService {
     codSecretaria: string = "221"
   ): Promise<{ items: SapContract[] }> {
     this.logger.log(
-      `Consultando SAP: ${fechaInicio} - ${fechaFin} (Secretaría: ${codSecretaria})`
+      `Consultando SAP [MOCK]: ${fechaInicio} - ${fechaFin} (Secretaría: ${codSecretaria})`
     );
 
+    // --- LOGICA ORIGINAL COMENTADA PARA PRUEBAS SIN VPN ---
+    /*
     const soapBody = `<?xml version="1.0" encoding="utf-8"?>
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:med="urn://medellin.gov.co:SICGEM:ConsultaContratos">
     <soapenv:Header/>
@@ -110,6 +109,11 @@ export class SapApiService {
     }
 
     const xmlText = await response.text();
+    */
+
+    // --- USA MOCK ---
+    const xmlText = MOCK_SAP_XML;
+
     this.logger.debug(`SAP Response XML (truncated): ${xmlText.substring(0, 500)}...`);
 
     return this.parseXmlResponse(xmlText);
@@ -152,62 +156,71 @@ export class SapApiService {
    */
   private mapSapItemToContract(item: any): SapContract {
     return {
-      numContrato: item.NUM_CONTRATO ?? "",
-      objetoContrato: item.OBJETO_CONTRATO ?? "",
+      numContrato: item.NUM_CONTRATO?.toString() ?? "",
+      objetoContrato: item.OBJETO_CONTRATO?.toString() ?? "",
       fechaInicio: this.convertDateFormat(item.FECHA_INICIO),
-      fechaFinal: this.convertDateFormat(item.FECHA_FIN),
-      valorInicial: item.VALOR_INICIAL ?? "",
-      valorTotal: item.VALOR_TOTAL ?? "",
-      valorFacturado: item.VALOR_FACTURADO ?? "",
-      moneda: item.MONEDA ?? "",
-      codContratista: item.COD_CONTRATISTA ?? "",
-      nitContratista: item.NIT_CONTRATISTA ?? "",
-      nombreContratista: item.NOMBRE_CONTRATISTA ?? "",
-      direccion: item.DIRECCION ?? "",
-      telefono: item.TELEFONO ?? "",
-      email: item.EMAIL ?? "",
-      pedido: item.PEDIDO ?? "",
-      secretaria: item.SECRETARIA ?? "",
-      posicion: item.POSICION ?? "",
-      valorPosicion: item.VALOR_POSICION ?? "",
-      cdp: item.CDP ?? "",
-      valorCDP: item.VALOR_CDP ?? "",
-      proyecto: item.PROYECTO ?? "",
-      nombreProyecto: item.NOMBRE_PROYECTO ?? "",
-      totalProyecto: item.TOTAL_PROYECTO ?? "",
-      programa: item.PROGRAMA ?? "",
-      nombrePrograma: item.NOMBRE_PROGRAMA ?? "",
-      estudioPrevio: item.ESTUDIO_PREVIO ?? "",
-      necesidad: item.NECESIDAD ?? "",
-      valorNecesidad: item.VALOR_NECESIDAD ?? "",
-      cantidadPlan: item.CANTIDAD_PLAN ?? "",
-      unidad: item.UNIDAD ?? "",
-      valorUnitPlan: item.VALOR_UNIT_PLAN ?? "",
-      valorTotalPlan: item.VALOR_TOTAL_PLAN ?? "",
-      modalidad: item.MODALIDAD ?? "",
-      causal: item.CAUSAL ?? "",
-      estado: item.ESTADO ?? "",
-      totalAdicion: item.TOTAL_ADICION ?? "",
-      totalAmpliacion: item.TOTAL_AMPLIACION ?? "",
-      pospre: item.POSPRE ?? "",
-      codigoFondo: item.CODIGOFONDO ?? "",
-      descripcionFondo: item.DESCRIPCIONFONDO ?? "",
-      centroGestor: item.CENTROGESTOR ?? "",
-      descCentroGestor: item.DESCCENTROGESTOR ?? "",
+      fechaFinal: this.convertDateFormat(item.FECHA_FINAL),
+      valorInicial: item.VALOR_INICIAL?.toString() ?? "",
+      valorTotal: item.VALOR_TOTAL?.toString() ?? "",
+      valorFacturado: item.VALOR_FACTURADO?.toString() ?? "",
+      moneda: item.MONEDA?.toString() ?? "",
+      codContratista: item.COD_CONTRATISTA?.toString() ?? "",
+      nitContratista: item.NIT_CONTRATISTA?.toString() ?? "",
+      nombreContratista: item.NOMBRE_CONTRATISTA?.toString() ?? "",
+      direccion: item.DIRECCION?.toString() ?? "",
+      telefono: item.TELEFONO?.toString() ?? "",
+      email: item.EMAIL?.toString() ?? "",
+      pedido: item.PEDIDO?.toString() ?? "",
+      secretaria: item.SECRETARIA?.toString() ?? "",
+      posicion: item.POSICION?.toString() ?? "",
+      valorPosicion: item.VALOR_POSICION?.toString() ?? "",
+      cdp: item.CDP?.toString() ?? "",
+      valorCDP: item.VALOR_CDP?.toString() ?? "",
+      proyecto: item.PROYECTO?.toString() ?? "",
+      nombreProyecto: item.NOMBRE_PROYECTO?.toString() ?? "",
+      totalProyecto: item.TOTAL_PROYECTO?.toString() ?? "",
+      programa: item.PROGRAMA?.toString() ?? "",
+      nombrePrograma: item.NOMBRE_PROGRAMA?.toString() ?? "",
+      estudioPrevio: item.ESTUDIO_PREVIO?.toString() ?? "",
+      necesidad: item.NECESIDAD?.toString() ?? "",
+      valorNecesidad: item.VALOR_NECESIDAD?.toString() ?? "",
+      cantidadPlan: item.CANTIDAD_PLAN?.toString() ?? "",
+      unidad: item.UNIDAD?.toString() ?? "",
+      valorUnitPlan: item.VALOR_UNIT_PLAN?.toString() ?? "",
+      valorTotalPlan: item.VALOR_TOTAL_PLAN?.toString() ?? "",
+      modalidad: item.MODALIDAD?.toString() ?? "",
+      causal: item.CAUSAL?.toString() ?? "",
+      estado: item.ESTADO?.toString() ?? "",
+      totalAdicion: item.TOTAL_ADICION?.toString() ?? "",
+      totalAmpliacion: item.TOTAL_AMPLIACION?.toString() ?? "",
+      pospre: item.POSPRE?.toString() ?? "",
+      codigoFondo: item.CODIGOFONDO?.toString() ?? "",
+      descripcionFondo: item.DESCRIPCIONFONDO?.toString() ?? "",
+      centroGestor: item.CENTROGESTOR?.toString() ?? "",
+      descCentroGestor: item.DESCCENTROGESTOR?.toString() ?? "",
     };
   }
 
   /**
-   * Convierte formato de fecha de SAP (DD.MM.YYYY) a formato SP (YYYYMMDD).
+   * Convierte formato de fecha de SAP (DD.MM.YYYY o YYYYMMDD) a formato SP (YYYYMMDD).
    */
-  private convertDateFormat(date: string | undefined): string {
+  private convertDateFormat(date: any): string {
     if (!date) return "";
 
+    // Asegurar que sea string (fast-xml-parser puede devolver números)
+    const dateStr = date.toString().trim();
+
+    // Si ya viene en formato SAP puro YYYYMMDD (8 dígitos) y parece válido
+    if (/^\d{8}$/.test(dateStr)) {
+      return dateStr;
+    }
+
     // SAP puede devolver DD.MM.YYYY o DD-MM-YYYY
-    const parts = date.split(/[.\-\/]/);
-    if (parts.length !== 3) return date;
+    const parts = dateStr.split(/[.\-\/]/);
+    if (parts.length !== 3) return dateStr;
 
     const [day, month, year] = parts;
     return `${year}${month.padStart(2, "0")}${day.padStart(2, "0")}`;
   }
 }
+

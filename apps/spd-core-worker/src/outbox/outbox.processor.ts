@@ -1,9 +1,12 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { IsNull, Not, Repository } from "typeorm";
 import { OutboxMessage } from "@common/entities/outbox-message.entity";
 import { OutboxPublisher } from "./outbox.publisher";
+
+// Eventos que se procesan localmente y NO deben publicarse al bus
+const LOCAL_ONLY_EVENTS = ["sap.sync.requested"];
 
 @Injectable()
 export class OutboxProcessor {
@@ -16,22 +19,25 @@ export class OutboxProcessor {
     @InjectRepository(OutboxMessage)
     private outbox: Repository<OutboxMessage>,
     private publisher: OutboxPublisher
-  ) {}
+  ) { }
 
   /**
    * ✅ cada 2 segundos procesa outbox
-   * - Busca pendientes
-   * - Publica
+   * - Busca pendientes (excluyendo eventos locales como sap.sync.requested)
+   * - Publica al bus
    * - Marca processed_at si ok
    * - Si falla, attempts++ y guarda last_error
    */
   @Cron("*/2 * * * * *")
   async tick() {
-    const batch = await this.outbox.find({
-      where: { processed_at: null },
-      order: { occurred_at: "ASC" },
-      take: this.BATCH_SIZE,
-    });
+    // Obtener mensajes pendientes excluyendo los que se procesan localmente
+    const batch = await this.outbox
+      .createQueryBuilder("msg")
+      .where("msg.processed_at IS NULL")
+      .andWhere("msg.name NOT IN (:...localEvents)", { localEvents: LOCAL_ONLY_EVENTS })
+      .orderBy("msg.occurred_at", "ASC")
+      .take(this.BATCH_SIZE)
+      .getMany();
 
     for (const msg of batch) {
       if ((msg.attempts ?? 0) >= this.MAX_ATTEMPTS) {
