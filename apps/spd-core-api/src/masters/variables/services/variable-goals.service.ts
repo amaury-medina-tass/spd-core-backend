@@ -49,16 +49,16 @@ export class VariableGoalsService {
             sortBy && sortableFields.includes(sortBy) ? sortBy : "createAt";
 
         const queryBuilder = this.variableGoalRepository
-            .createQueryBuilder("variableGoal")
-            .leftJoin("variableGoal.variable", "variable")
+            .createQueryBuilder("vg")
+            .leftJoin("vg.variable", "variable")
             .where("variable.id = :variableId", { variableId })
-            .addSelect(["variableGoal", "variable.id", "variable.code", "variable.name"]);
+            .addSelect(["vg"]);
 
         if (search) {
             queryBuilder.andWhere(new Brackets((qb) => {
                 qb.where("variable.code ILIKE :search", { search: `%${search}%` })
                     .orWhere("variable.name ILIKE :search", { search: `%${search}%` })
-                    .orWhere("variableGoal.year::text ILIKE :search", { search: `%${search}%` });
+                    .orWhere("vg.year::text ILIKE :search", { search: `%${search}%` });
             }));
         }
 
@@ -66,7 +66,7 @@ export class VariableGoalsService {
             const [relation, field] = validSortBy.split(".");
             queryBuilder.orderBy(`${relation}.${field}`, validSortOrder);
         } else {
-            queryBuilder.orderBy(`variableGoal.${validSortBy}`, validSortOrder);
+            queryBuilder.orderBy(`vg.${validSortBy}`, validSortOrder);
         }
 
         queryBuilder.skip(skip).take(limit);

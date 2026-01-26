@@ -21,4 +21,5 @@ export default () => ({
     url: process.env.SAP_URL ?? "",
     auth: process.env.SAP_AUTH ?? "",
   },
+  systemName: process.env.SYSTEM_NAME,
 });

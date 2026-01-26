@@ -5,8 +5,9 @@ import { BudgetModificationsModule } from "./budget-modifications/budget-modific
 import { MgaActivitiesModule } from "./mga-activities/mga-activities.module";
 import { ProductsModule } from "./products/products.module";
 import { VariablesModule } from "./variables/variables.module";
+import { IndicatorsModule } from "./indicators/indicators.module";
 
 @Module({
-  imports: [DetailedActivitiesModule, RubricsModule, BudgetModificationsModule, MgaActivitiesModule, ProductsModule, VariablesModule],
+  imports: [DetailedActivitiesModule, RubricsModule, BudgetModificationsModule, MgaActivitiesModule, ProductsModule, VariablesModule, IndicatorsModule],
 })
 export class MastersModule { }
