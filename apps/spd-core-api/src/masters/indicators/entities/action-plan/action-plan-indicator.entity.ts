@@ -1,4 +1,5 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
+import { Formula } from "../formula.entity";
 import { UnitMeasure } from "../common/unit-measure.entity";
 
 @Entity({ name: "action_plan_indicators" })
@@ -39,4 +40,7 @@ export class ActionPlanIndicator {
     @ManyToOne(() => UnitMeasure)
     @JoinColumn({ name: "id_unit_measure" })
     unitMeasure?: UnitMeasure;
+
+    @OneToMany(() => Formula, (formula) => formula.actionIndicator)
+    formulas?: Formula[];
 }

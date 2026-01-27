@@ -1,4 +1,5 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
+import { Formula } from "../formula.entity";
 import { IndicatorType } from "../common/indicator-type.entity";
 import { IndicatorDirection } from "../common/indicator-direction.entity";
 import { UnitMeasure } from "../common/unit-measure.entity";
@@ -64,4 +65,7 @@ export class IndicativePlanIndicator {
     @ManyToOne(() => IndicatorDirection)
     @JoinColumn({ name: "id_direction" })
     direction?: IndicatorDirection;
+
+    @OneToMany(() => Formula, (formula) => formula.indicativeIndicator)
+    formulas?: Formula[];
 }

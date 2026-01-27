@@ -21,13 +21,22 @@ import { IndicativePlanIndicatorGoalsService } from "./services/indicative-plan/
 import { IndicativePlanIndicatorQuadrenniumsService } from "./services/indicative-plan/indicative-plan-indicator-quadrenniums.service";
 import { ActionPlanIndicatorGoalsService } from "./services/action-plan/action-plan-indicator-goals.service";
 import { ActionPlanIndicatorQuadrenniumsService } from "./services/action-plan/action-plan-indicator-quadrenniums.service";
+import { ProjectActionIndicatorRelationsService } from "./services/action-plan/project-action-indicator-relations.service";
 import { VariableIndicativeRelationsService } from "./services/indicative-plan/variable-indicative-relations.service";
 import { VariableActionRelationsService } from "./services/action-plan/variable-action-relations.service";
+import { ProjectActionIndicatorRelationsController } from "./controllers/action-plan/project-action-indicator-relations.controller";
 import { VariableIndicativeRelationsController } from "./controllers/indicative-plan/variable-indicative-relations.controller";
 import { VariableActionRelationsController } from "./controllers/action-plan/variable-action-relations.controller";
 import { VariableIndicativeRelation } from "./entities/indicative-plan/variable-indicative-relation.entity";
 import { VariableActionRelation } from "./entities/action-plan/variable-action-relation.entity";
+import { ProjectActionIndicatorRelation } from "./entities/action-plan/project-action-indicator-relation.entity";
 import { Variable } from "../variables/entities/variable.entity";
+import { VariableGoal } from "../variables/entities/variable-goal.entity";
+import { VariableQuadrennium } from "../variables/entities/variable-quadrennium.entity";
+import { Project } from "../../financial/projects/entities/project.entity";
+import { Formula } from "./entities/formula.entity";
+import { FormulasController } from "./controllers/formulas.controller";
+import { FormulasService } from "./services/formulas.service";
 
 @Module({
     imports: [
@@ -43,7 +52,12 @@ import { Variable } from "../variables/entities/variable.entity";
             IndicatorDirection,
             VariableIndicativeRelation,
             VariableActionRelation,
+            ProjectActionIndicatorRelation,
             Variable,
+            VariableGoal,
+            VariableQuadrennium,
+            Project,
+            Formula,
         ]),
     ],
     controllers: [
@@ -55,6 +69,9 @@ import { Variable } from "../variables/entities/variable.entity";
         ActionPlanIndicatorQuadrenniumsController,
         VariableIndicativeRelationsController,
         VariableActionRelationsController,
+        VariableActionRelationsController,
+        ProjectActionIndicatorRelationsController,
+        FormulasController,
     ],
     providers: [
         IndicativePlanIndicatorsService,
@@ -65,6 +82,9 @@ import { Variable } from "../variables/entities/variable.entity";
         ActionPlanIndicatorQuadrenniumsService,
         VariableIndicativeRelationsService,
         VariableActionRelationsService,
+        VariableActionRelationsService,
+        ProjectActionIndicatorRelationsService,
+        FormulasService,
     ],
     exports: [
         IndicativePlanIndicatorsService,
@@ -75,6 +95,9 @@ import { Variable } from "../variables/entities/variable.entity";
         ActionPlanIndicatorQuadrenniumsService,
         VariableIndicativeRelationsService,
         VariableActionRelationsService,
+        VariableActionRelationsService,
+        ProjectActionIndicatorRelationsService,
+        FormulasService,
     ],
 })
 export class IndicatorsModule { }
