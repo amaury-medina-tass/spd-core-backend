@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { Brackets, Repository } from "typeorm";
 import { ActionPlanIndicatorQuadrennium } from "../../entities/action-plan/action-plan-indicator-quadrennium.entity";
 import { ActionPlanIndicator } from "../../entities/action-plan/action-plan-indicator.entity";
 import { CreateActionPlanIndicatorQuadrenniumDto } from "../../dtos/action-plan/create-action-plan-indicator-quadrennium.dto";
@@ -34,12 +34,72 @@ export class ActionPlanIndicatorQuadrenniumsService {
         }
     }
 
-    async findAllByIndicator(indicatorId: string): Promise<ActionPlanIndicatorQuadrennium[]> {
-        return this.quadrenniumRepository.find({
-            where: { indicatorId },
-            order: { startYear: "ASC" },
-        });
+    async findAllPaginated(
+        indicatorId: string,
+        page: number = 1,
+        limit: number = 10,
+        search?: string,
+        sortBy?: string,
+        sortOrder?: "ASC" | "DESC"
+    ) {
+        const skip = (page - 1) * limit;
+
+        const validSortOrder =
+            sortOrder === "ASC" || sortOrder === "DESC" ? sortOrder : "DESC";
+
+        const sortableFields = [
+            "createAt",
+            "updateAt",
+            "startYear",
+            "endYear",
+            "value",
+            "indicator.code",
+            "indicator.name",
+        ];
+        const validSortBy =
+            sortBy && sortableFields.includes(sortBy) ? sortBy : "createAt";
+
+        const queryBuilder = this.quadrenniumRepository
+            .createQueryBuilder("q")
+            .leftJoin("q.indicator", "indicator")
+            .where("indicator.id = :indicatorId", { indicatorId })
+            .addSelect(["q"]);
+
+        if (search) {
+            queryBuilder.andWhere(new Brackets((qb) => {
+                qb.where("indicator.code ILIKE :search", { search: `%${search}%` })
+                    .orWhere("indicator.name ILIKE :search", { search: `%${search}%` })
+                    .orWhere("q.start_year::text ILIKE :search", { search: `%${search}%` })
+                    .orWhere("q.end_year::text ILIKE :search", { search: `%${search}%` });
+            }));
+        }
+
+        if (validSortBy.includes(".")) {
+            const [relation, field] = validSortBy.split(".");
+            queryBuilder.orderBy(`${relation}.${field}`, validSortOrder);
+        } else {
+            queryBuilder.orderBy(`q.${validSortBy}`, validSortOrder);
+        }
+
+        queryBuilder.skip(skip).take(limit);
+
+        const [data, total] = await queryBuilder.getManyAndCount();
+
+        const totalPages = Math.ceil(total / limit);
+
+        return {
+            data,
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages,
+                hasNextPage: page < totalPages,
+                hasPreviousPage: page > 1,
+            },
+        };
     }
+
 
     async findOne(id: string): Promise<ActionPlanIndicatorQuadrennium> {
         const quadrennium = await this.quadrenniumRepository.findOne({ where: { id } });

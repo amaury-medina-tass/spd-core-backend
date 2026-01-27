@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, ParseUUIDPipe } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, ParseUUIDPipe, Query } from "@nestjs/common";
 import { ActionPlanIndicatorQuadrenniumsService } from "../../services/action-plan/action-plan-indicator-quadrenniums.service";
 import { CreateActionPlanIndicatorQuadrenniumDto } from "../../dtos/action-plan/create-action-plan-indicator-quadrennium.dto";
 import { UpdateActionPlanIndicatorQuadrenniumDto } from "../../dtos/action-plan/create-action-plan-indicator-quadrennium.dto";
@@ -12,10 +12,25 @@ export class ActionPlanIndicatorQuadrenniumsController {
         return this.service.create(createDto);
     }
 
-    @Get("by-indicator/:indicatorId")
-    findAllByIndicator(@Param("indicatorId", ParseUUIDPipe) indicatorId: string) {
-        return this.service.findAllByIndicator(indicatorId);
+    @Get()
+    findAll(
+        @Query("indicatorId", ParseUUIDPipe) indicatorId: string,
+        @Query("page") page: number,
+        @Query("limit") limit: number,
+        @Query("search") search: string,
+        @Query("sortBy") sortBy: string,
+        @Query("sortOrder") sortOrder: "ASC" | "DESC"
+    ) {
+        return this.service.findAllPaginated(
+            indicatorId,
+            page ? +page : 1,
+            limit ? +limit : 10,
+            search,
+            sortBy,
+            sortOrder
+        );
     }
+
 
     @Get(":id")
     findOne(@Param("id", ParseUUIDPipe) id: string) {

@@ -21,6 +21,13 @@ import { IndicativePlanIndicatorGoalsService } from "./services/indicative-plan/
 import { IndicativePlanIndicatorQuadrenniumsService } from "./services/indicative-plan/indicative-plan-indicator-quadrenniums.service";
 import { ActionPlanIndicatorGoalsService } from "./services/action-plan/action-plan-indicator-goals.service";
 import { ActionPlanIndicatorQuadrenniumsService } from "./services/action-plan/action-plan-indicator-quadrenniums.service";
+import { VariableIndicativeRelationsService } from "./services/indicative-plan/variable-indicative-relations.service";
+import { VariableActionRelationsService } from "./services/action-plan/variable-action-relations.service";
+import { VariableIndicativeRelationsController } from "./controllers/indicative-plan/variable-indicative-relations.controller";
+import { VariableActionRelationsController } from "./controllers/action-plan/variable-action-relations.controller";
+import { VariableIndicativeRelation } from "./entities/indicative-plan/variable-indicative-relation.entity";
+import { VariableActionRelation } from "./entities/action-plan/variable-action-relation.entity";
+import { Variable } from "../variables/entities/variable.entity";
 
 @Module({
     imports: [
@@ -34,6 +41,9 @@ import { ActionPlanIndicatorQuadrenniumsService } from "./services/action-plan/a
             IndicatorType,
             UnitMeasure,
             IndicatorDirection,
+            VariableIndicativeRelation,
+            VariableActionRelation,
+            Variable,
         ]),
     ],
     controllers: [
@@ -43,6 +53,8 @@ import { ActionPlanIndicatorQuadrenniumsService } from "./services/action-plan/a
         IndicativePlanIndicatorQuadrenniumsController,
         ActionPlanIndicatorGoalsController,
         ActionPlanIndicatorQuadrenniumsController,
+        VariableIndicativeRelationsController,
+        VariableActionRelationsController,
     ],
     providers: [
         IndicativePlanIndicatorsService,
@@ -51,6 +63,8 @@ import { ActionPlanIndicatorQuadrenniumsService } from "./services/action-plan/a
         IndicativePlanIndicatorQuadrenniumsService,
         ActionPlanIndicatorGoalsService,
         ActionPlanIndicatorQuadrenniumsService,
+        VariableIndicativeRelationsService,
+        VariableActionRelationsService,
     ],
     exports: [
         IndicativePlanIndicatorsService,
@@ -59,6 +73,8 @@ import { ActionPlanIndicatorQuadrenniumsService } from "./services/action-plan/a
         IndicativePlanIndicatorQuadrenniumsService,
         ActionPlanIndicatorGoalsService,
         ActionPlanIndicatorQuadrenniumsService,
+        VariableIndicativeRelationsService,
+        VariableActionRelationsService,
     ],
 })
 export class IndicatorsModule { }
