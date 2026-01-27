@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from "@nestjs/common";
-import { ActionPlanIndicatorsService } from "../services/action-plan-indicators.service";
-import { CreateActionPlanIndicatorDto } from "../dtos/create-action-plan-indicator.dto";
-import { UpdateActionPlanIndicatorDto } from "../dtos/update-action-plan-indicator.dto";
+import { ActionPlanIndicatorsService } from "../../services/action-plan/action-plan-indicators.service";
+import { CreateActionPlanIndicatorDto } from "../../dtos/action-plan/create-action-plan-indicator.dto";
+import { UpdateActionPlanIndicatorDto } from "../../dtos/action-plan/update-action-plan-indicator.dto";
 
 @Controller("masters/action-plan-indicators")
 export class ActionPlanIndicatorsController {

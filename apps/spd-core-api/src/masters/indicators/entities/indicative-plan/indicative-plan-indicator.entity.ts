@@ -1,7 +1,7 @@
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
-import { IndicatorType } from "./indicator-type.entity";
-import { IndicatorDirection } from "./indicator-direction.entity";
-import { UnitMeasure } from "./unit-measure.entity";
+import { IndicatorType } from "../common/indicator-type.entity";
+import { IndicatorDirection } from "../common/indicator-direction.entity";
+import { UnitMeasure } from "../common/unit-measure.entity";
 
 @Entity({ name: "indicative_plan_indicators" })
 export class IndicativePlanIndicator {

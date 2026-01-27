@@ -1,5 +1,5 @@
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
-import { UnitMeasure } from "./unit-measure.entity";
+import { UnitMeasure } from "../common/unit-measure.entity";
 
 @Entity({ name: "action_plan_indicators" })
 export class ActionPlanIndicator {

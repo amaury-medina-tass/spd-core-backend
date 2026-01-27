@@ -1,8 +1,8 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from "@nestjs/common";
 
-import { IndicativePlanIndicatorsService } from "../services/indicative-plan-indicators.service";
-import { CreateIndicativePlanIndicatorDto } from "../dtos/create-indicative-plan-indicator.dto";
-import { UpdateIndicativePlanIndicatorDto } from "../dtos/update-indicative-plan-indicator.dto";
+import { IndicativePlanIndicatorsService } from "../../services/indicative-plan/indicative-plan-indicators.service";
+import { CreateIndicativePlanIndicatorDto } from "../../dtos/indicative-plan/create-indicative-plan-indicator.dto";
+import { UpdateIndicativePlanIndicatorDto } from "../../dtos/indicative-plan/update-indicative-plan-indicator.dto";
 
 @Controller("masters/indicators")
 export class IndicativePlanIndicatorsController {

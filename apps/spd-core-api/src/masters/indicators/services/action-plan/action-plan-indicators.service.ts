@@ -1,10 +1,10 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, Brackets } from "typeorm";
-import { ActionPlanIndicator } from "../entities/action-plan-indicator.entity";
-import { UnitMeasure } from "../entities/unit-measure.entity";
-import { CreateActionPlanIndicatorDto } from "../dtos/create-action-plan-indicator.dto";
-import { UpdateActionPlanIndicatorDto } from "../dtos/update-action-plan-indicator.dto";
+import { ActionPlanIndicator } from "../../entities/action-plan/action-plan-indicator.entity";
+import { UnitMeasure } from "../../entities/common/unit-measure.entity";
+import { CreateActionPlanIndicatorDto } from "../../dtos/action-plan/create-action-plan-indicator.dto";
+import { UpdateActionPlanIndicatorDto } from "../../dtos/action-plan/update-action-plan-indicator.dto";
 
 @Injectable()
 export class ActionPlanIndicatorsService {
