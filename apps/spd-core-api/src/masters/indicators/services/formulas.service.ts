@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { IndicativePlanIndicator } from '../entities/indicative-plan/indicative-plan-indicator.entity';
@@ -11,6 +15,8 @@ import { IndicativePlanIndicatorGoal } from '../entities/indicative-plan/indicat
 import { IndicativePlanIndicatorQuadrennium } from '../entities/indicative-plan/indicative-plan-indicator-quadrennium.entity';
 import { VariableGoal } from '../../variables/entities/variable-goal.entity';
 import { VariableQuadrennium } from '../../variables/entities/variable-quadrennium.entity';
+import { Formula } from '../entities/formula.entity';
+import { CreateFormulaDto } from '../dtos/create-formula.dto';
 
 @Injectable()
 export class FormulasService {
@@ -27,7 +33,25 @@ export class FormulasService {
     private readonly variableGoalRepo: Repository<VariableGoal>,
     @InjectRepository(VariableQuadrennium)
     private readonly variableQuadrenniumRepo: Repository<VariableQuadrennium>,
+    @InjectRepository(Formula)
+    private readonly formulaRepo: Repository<Formula>,
   ) {}
+
+  async create(createFormulaDto: CreateFormulaDto) {
+    if (
+      (!createFormulaDto.indicativeIndicatorId &&
+        !createFormulaDto.actionIndicatorId) ||
+      (createFormulaDto.indicativeIndicatorId &&
+        createFormulaDto.actionIndicatorId)
+    ) {
+      throw new BadRequestException(
+        'Must provide exactly one of indicativeIndicatorId or actionIndicatorId',
+      );
+    }
+
+    const formula = this.formulaRepo.create(createFormulaDto);
+    return this.formulaRepo.save(formula);
+  }
 
   async findDataForCalculator(
     indicatorId: string,
@@ -39,20 +63,22 @@ export class FormulasService {
     } else if (type === 'indicative') {
       return this.getIndicativePlanData(indicatorId, year);
     } else {
-      throw new BadRequestException('Invalid type. Must be "action" or "indicative".');
+      throw new BadRequestException(
+        'Invalid type. Must be "action" or "indicative".',
+      );
     }
   }
 
   private async getActionPlanData(indicatorId: string, year: number) {
     const indicator = await this.actionIndicatorRepo.findOne({
       where: { id: indicatorId },
-      relations: [
-        'unitMeasure',
-      ],
+      relations: ['unitMeasure', 'formulas'],
     });
 
     if (!indicator) {
-      throw new NotFoundException(`Action Plan Indicator with ID ${indicatorId} not found`);
+      throw new NotFoundException(
+        `Action Plan Indicator with ID ${indicatorId} not found`,
+      );
     }
 
     // Fetch goals and quadrenniums manually if they are separate entities and no relation is set up in entity
@@ -70,8 +96,12 @@ export class FormulasService {
     // I need to fetch goals/quadrenniums separately for the indicator too.
 
     const [indicatorGoals, indicatorQuadrenniums] = await Promise.all([
-      this.actionIndicatorRepo.manager.find(ActionPlanIndicatorGoal, { where: { indicatorId, year } }),
-      this.actionIndicatorRepo.manager.find(ActionPlanIndicatorQuadrennium, { where: { indicatorId } }),
+      this.actionIndicatorRepo.manager.find(ActionPlanIndicatorGoal, {
+        where: { indicatorId, year },
+      }),
+      this.actionIndicatorRepo.manager.find(ActionPlanIndicatorQuadrennium, {
+        where: { indicatorId },
+      }),
     ]);
 
     const variableRelations = await this.variableActionRelationRepo.find({
@@ -80,14 +110,18 @@ export class FormulasService {
     });
 
     const variableIds = variableRelations.map((vr) => vr.variableId);
-    
+
     let variableGoals: VariableGoal[] = [];
     let variableQuadrenniums: VariableQuadrennium[] = [];
 
     if (variableIds.length > 0) {
       [variableGoals, variableQuadrenniums] = await Promise.all([
-        this.variableGoalRepo.find({ where: { variableId: In(variableIds), year } }),
-        this.variableQuadrenniumRepo.find({ where: { variableId: In(variableIds) } }),
+        this.variableGoalRepo.find({
+          where: { variableId: In(variableIds), year },
+        }),
+        this.variableQuadrenniumRepo.find({
+          where: { variableId: In(variableIds) },
+        }),
       ]);
     }
 
@@ -118,17 +152,25 @@ export class FormulasService {
       relations: [
         'unitMeasure',
         'indicatorType',
-        'direction'
+        'direction',
+        'formulas'
       ],
     });
 
     if (!indicator) {
-      throw new NotFoundException(`Indicative Plan Indicator with ID ${indicatorId} not found`);
+      throw new NotFoundException(
+        `Indicative Plan Indicator with ID ${indicatorId} not found`,
+      );
     }
 
     const [indicatorGoals, indicatorQuadrenniums] = await Promise.all([
-      this.indicativeIndicatorRepo.manager.find(IndicativePlanIndicatorGoal, { where: { indicatorId, year } }),
-      this.indicativeIndicatorRepo.manager.find(IndicativePlanIndicatorQuadrennium, { where: { indicatorId } }),
+      this.indicativeIndicatorRepo.manager.find(IndicativePlanIndicatorGoal, {
+        where: { indicatorId, year },
+      }),
+      this.indicativeIndicatorRepo.manager.find(
+        IndicativePlanIndicatorQuadrennium,
+        { where: { indicatorId } },
+      ),
     ]);
 
     const variableRelations = await this.variableIndicativeRelationRepo.find({
@@ -143,8 +185,12 @@ export class FormulasService {
 
     if (variableIds.length > 0) {
       [variableGoals, variableQuadrenniums] = await Promise.all([
-        this.variableGoalRepo.find({ where: { variableId: In(variableIds), year } }),
-        this.variableQuadrenniumRepo.find({ where: { variableId: In(variableIds) } }),
+        this.variableGoalRepo.find({
+          where: { variableId: In(variableIds), year },
+        }),
+        this.variableQuadrenniumRepo.find({
+          where: { variableId: In(variableIds) },
+        }),
       ]);
     }
 

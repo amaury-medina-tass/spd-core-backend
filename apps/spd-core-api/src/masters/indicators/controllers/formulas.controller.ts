@@ -1,9 +1,15 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { FormulasService } from '../services/formulas.service';
+import { CreateFormulaDto } from '../dtos/create-formula.dto';
 
 @Controller('masters/formulas')
 export class FormulasController {
   constructor(private readonly formulasService: FormulasService) {}
+
+  @Post()
+  create(@Body() createFormulaDto: CreateFormulaDto) {
+    return this.formulasService.create(createFormulaDto);
+  }
 
   @Get('indicator-data/:indicatorId')
   findData(
