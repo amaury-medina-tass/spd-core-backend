@@ -11,6 +11,7 @@ import { JwtStrategy } from "./auth/strategies/jwt.strategy";
 import { MastersModule } from "./masters/masters.module";
 import { FinancialModule } from "./financial/financial.module";
 import { SapSyncModule } from "./sap-sync/sap-sync.module";
+import { SubModule } from "./sub/sub.module";
 import { RedisModule } from "@common/redis/redis.module";
 
 @Module({
@@ -29,6 +30,7 @@ import { RedisModule } from "@common/redis/redis.module";
     MastersModule,
     FinancialModule,
     SapSyncModule,
+    SubModule,
     RedisModule,
   ],
   providers: [JwtStrategy],

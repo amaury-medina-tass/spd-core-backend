@@ -37,6 +37,8 @@ import { Project } from "../../financial/projects/entities/project.entity";
 import { Formula } from "./entities/formula.entity";
 import { FormulasController } from "./controllers/formulas.controller";
 import { FormulasService } from "./services/formulas.service";
+import { VariableAdvancesModule } from "../../sub/variable-advances/variable-advances.module";
+import { forwardRef } from "@nestjs/common";
 
 @Module({
     imports: [
@@ -58,7 +60,10 @@ import { FormulasService } from "./services/formulas.service";
             VariableQuadrennium,
             Project,
             Formula,
+            Project,
+            Formula,
         ]),
+        forwardRef(() => VariableAdvancesModule),
     ],
     controllers: [
         IndicativePlanIndicatorsController,

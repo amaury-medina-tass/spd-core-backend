@@ -17,6 +17,9 @@ import { VariableGoal } from '../../variables/entities/variable-goal.entity';
 import { VariableQuadrennium } from '../../variables/entities/variable-quadrennium.entity';
 import { Formula } from '../entities/formula.entity';
 import { CreateFormulaDto } from '../dtos/create-formula.dto';
+import { UpdateFormulaDto } from '../dtos/update-formula.dto';
+import { forwardRef, Inject } from '@nestjs/common';
+import { VariableAdvancesService } from '../../../sub/variable-advances/services/variable-advances.service';
 
 @Injectable()
 export class FormulasService {
@@ -35,7 +38,9 @@ export class FormulasService {
     private readonly variableQuadrenniumRepo: Repository<VariableQuadrennium>,
     @InjectRepository(Formula)
     private readonly formulaRepo: Repository<Formula>,
-  ) {}
+    @Inject(forwardRef(() => VariableAdvancesService))
+    private readonly variableAdvancesService: VariableAdvancesService,
+  ) { }
 
   async create(createFormulaDto: CreateFormulaDto) {
     if (
@@ -50,7 +55,30 @@ export class FormulasService {
     }
 
     const formula = this.formulaRepo.create(createFormulaDto);
-    return this.formulaRepo.save(formula);
+    const saved = await this.formulaRepo.save(formula);
+
+    // Trigger recalculation
+    // We don't await this to keep response fast? Or consistent? 
+    // User said "Cada que se actualice... tiene que recalcular". Usually implies synchronous or guaranteed eventual consistency.
+    // I'll make it async but awaited to ensure it runs.
+    await this.variableAdvancesService.recalculateForFormula(saved);
+
+    return saved;
+  }
+
+  async update(id: string, updateFormulaDto: UpdateFormulaDto) {
+    const formula = await this.formulaRepo.preload({
+      id,
+      ...updateFormulaDto,
+    });
+
+    if (!formula) {
+      throw new NotFoundException(`Formula with ID ${id} not found`);
+    }
+
+    const saved = await this.formulaRepo.save(formula);
+    await this.variableAdvancesService.recalculateForFormula(saved);
+    return saved;
   }
 
   async findDataForCalculator(
