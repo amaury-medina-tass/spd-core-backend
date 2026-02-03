@@ -4,6 +4,7 @@ import { Repository, Brackets } from "typeorm";
 import { CdpPosition } from "../entities/cdp-position.entity";
 import { CdpPositionFunding } from "../entities/cdp-position-funding.entity";
 import { DetailedActivity } from "../../../masters/detailed-activities/entities/detailed-activity.entity";
+import { BudgetRecord } from "../../budget-records/entities/budget-record.entity";
 import { CdpTableRowDto } from "../dtos/cdp-table-row.dto";
 
 @Injectable()
@@ -15,6 +16,8 @@ export class CdpPositionsService {
         private fundingRepo: Repository<CdpPositionFunding>,
         @InjectRepository(DetailedActivity)
         private detailedActivityRepo: Repository<DetailedActivity>,
+        @InjectRepository(BudgetRecord)
+        private budgetRecordRepo: Repository<BudgetRecord>,
     ) { }
 
     async findByCdpId(cdpId: string, search?: string) {
@@ -49,7 +52,8 @@ export class CdpPositionsService {
         limit: number = 10,
         search?: string,
         sortBy?: string,
-        sortOrder?: "ASC" | "DESC"
+        sortOrder?: "ASC" | "DESC",
+        masterContractId?: string
     ): Promise<{ data: CdpTableRowDto[]; meta: { total: number; page: number; limit: number; totalPages: number; hasNextPage: boolean; hasPreviousPage: boolean } }> {
         const skip = (page - 1) * limit;
         const validSortOrder = sortOrder === "ASC" || sortOrder === "DESC" ? sortOrder : "DESC";
@@ -145,6 +149,11 @@ export class CdpPositionsService {
             }));
         }
 
+        if (masterContractId) {
+            queryBuilder.andWhere("mc.id = :masterContractId", { masterContractId });
+            countQuery.andWhere("mc.id = :masterContractId", { masterContractId });
+        }
+
         const countResult = await countQuery.getRawOne();
         const total = countResult ? parseInt(countResult.count, 10) : 0;
 
@@ -210,6 +219,7 @@ export class CdpPositionsService {
                 "pos.position_number AS \"positionNumber\"",
                 "pos.value AS \"positionValue\"",
                 "n.code AS \"needCode\"",
+                "cdp.id AS \"cdpId\"",
                 "cdp.number AS \"cdpNumber\"",
                 "cdp.total_value AS \"cdpTotalValue\"",
                 "STRING_AGG(DISTINCT fs.name, ', ') AS \"fundingSourceName\"",
@@ -222,13 +232,30 @@ export class CdpPositionsService {
             .addGroupBy("cdp.number")
             .addGroupBy("cdp.total_value")
             .addGroupBy("r.code")
-            .addGroupBy("n.code");
+            .addGroupBy("n.code")
+            .addGroupBy("mc.id")
+            .addGroupBy("mc.number")
+            .addGroupBy("mc.object")
+            .addGroupBy("mc.total_value");
 
-        const row = await queryBuilder.getRawOne();
+        const row = await queryBuilder
+            .addSelect([
+                "mc.id AS \"masterContractId\"",
+                "mc.number AS \"masterContractNumber\"",
+                "mc.object AS \"masterContractObject\"",
+                "mc.total_value AS \"masterContractTotalValue\""
+            ])
+            .getRawOne();
 
         if (!row) {
             throw new NotFoundException("Posición de CDP no encontrada");
         }
+
+        // Query para obtener los RPs (BudgetRecords) asociados al CDP
+        const associatedRpsResult = await this.budgetRecordRepo.find({
+            where: { cdpId: row.cdpId },
+            select: ["id", "number", "totalValue", "balance"]
+        });
 
         // Query separada para obtener el total consumido correctamente
         const consumedResult = await this.fundingRepo
@@ -314,6 +341,18 @@ export class CdpPositionsService {
             fundingSourceCode: row.fundingSourceCode || null,
             observations: row.observations,
             totalConsumed: consumedResult?.totalConsumed ? Number(consumedResult.totalConsumed) : 0,
+            masterContract: row.masterContractId ? {
+                id: row.masterContractId,
+                number: row.masterContractNumber,
+                object: row.masterContractObject,
+                totalValue: row.masterContractTotalValue ? Number(row.masterContractTotalValue) : null,
+            } : null,
+            associatedRps: associatedRpsResult.map(rp => ({
+                id: rp.id,
+                number: rp.number,
+                totalValue: rp.totalValue ? Number(rp.totalValue) : null,
+                balance: rp.balance ? Number(rp.balance) : null,
+            })),
             consumedByActivity: {
                 data: consumedByActivityData,
                 meta: {

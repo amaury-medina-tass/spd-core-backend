@@ -16,6 +16,7 @@ import { CdpPosition } from '../../../spd-core-api/src/financial/cdps/entities/c
 import { MasterContract } from '../../../spd-core-api/src/financial/master-contracts/entities/master-contract.entity';
 import { ContractCdpRelation } from '../../../spd-core-api/src/financial/contract-cdp-relations/entities/contract-cdp-relation.entity';
 import { ContractPosition } from '../../../spd-core-api/src/financial/contract-positions/entities/contract-position.entity';
+import { BudgetRecord } from '../../../spd-core-api/src/financial/budget-records/entities/budget-record.entity';
 
 @Injectable()
 export class SapSyncService {
@@ -74,6 +75,8 @@ export class SapSyncService {
 
         const cdpNum = item.cdp;
         const cdpValue = this.parseMoney(item.valorCDP);
+
+        const pedidoNum = item.pedido?.toString()?.trim();
 
         const contractNum = item.numContrato;
         const contractObj = item.objetoContrato;
@@ -259,7 +262,31 @@ export class SapSyncService {
         }
 
         // ==========================================
-        // 6. POSICIÓN DEL CONTRATO
+        // 6. REGISTRO PRESUPUESTAL (RP)
+        // ==========================================
+        let budgetRecord: BudgetRecord | null = null;
+        if (pedidoNum) {
+            budgetRecord = await runner.manager.findOne(BudgetRecord, { where: { number: pedidoNum } });
+            if (!budgetRecord) {
+                budgetRecord = runner.manager.create(BudgetRecord, {
+                    number: pedidoNum,
+                    totalValue: contractValue,
+                    balance: contractValue,
+                    contractId: contract?.id,
+                    cdpId: cdp?.id,
+                });
+                await runner.manager.save(budgetRecord);
+                this.logger.debug(`Creado BudgetRecord: ${pedidoNum}`);
+            } else {
+                budgetRecord.contractId = contract?.id;
+                budgetRecord.cdpId = cdp?.id;
+                budgetRecord.totalValue = contractValue;
+                await runner.manager.save(budgetRecord);
+            }
+        }
+
+        // ==========================================
+        // 7. POSICIÓN DEL CONTRATO
         // ==========================================
         if (contract && posNum) {
             let contractPos = await runner.manager.findOne(ContractPosition, {
@@ -277,6 +304,7 @@ export class SapSyncService {
                     rubricId: rubric?.id,
                     fundingSourceId: fund?.id,
                     projectId: project?.id,
+                    budgetRecordId: budgetRecord?.id,
                     // Campos huérfanos - se asignan manualmente después
                     cdpFundingId: undefined,
                     detailedActivityId: undefined,

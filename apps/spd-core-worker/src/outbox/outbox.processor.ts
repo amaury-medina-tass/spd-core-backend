@@ -6,7 +6,7 @@ import { OutboxMessage } from "@common/entities/outbox-message.entity";
 import { OutboxPublisher } from "./outbox.publisher";
 
 // Eventos que se procesan localmente y NO deben publicarse al bus
-const LOCAL_ONLY_EVENTS = ["sap.sync.requested"];
+const LOCAL_ONLY_EVENTS = [];
 
 @Injectable()
 export class OutboxProcessor {
