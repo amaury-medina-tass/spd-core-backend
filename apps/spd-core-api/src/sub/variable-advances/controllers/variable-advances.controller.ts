@@ -33,17 +33,35 @@ export class VariableAdvancesController {
     @Get("contextual/action-indicator/:indicatorId")
     findAllByActionIndicator(
         @Param("indicatorId", ParseUUIDPipe) indicatorId: string,
-        @Query("year") year?: number
+        @Query("year") year?: number,
+        @Query("page") page?: number,
+        @Query("limit") limit?: number,
+        @Query("search") search?: string
     ) {
-        return this.variableAdvancesService.findAllByActionIndicator(indicatorId, year);
+        return this.variableAdvancesService.findAllByActionIndicator(
+            indicatorId,
+            year,
+            page ? +page : 1,
+            limit ? +limit : 10,
+            search
+        );
     }
 
     @Get("contextual/indicative-indicator/:indicatorId")
     findAllByIndicativeIndicator(
         @Param("indicatorId", ParseUUIDPipe) indicatorId: string,
-        @Query("year") year?: number
+        @Query("year") year?: number,
+        @Query("page") page?: number,
+        @Query("limit") limit?: number,
+        @Query("search") search?: string
     ) {
-        return this.variableAdvancesService.findAllByIndicativeIndicator(indicatorId, year);
+        return this.variableAdvancesService.findAllByIndicativeIndicator(
+            indicatorId,
+            year,
+            page ? +page : 1,
+            limit ? +limit : 10,
+            search
+        );
     }
 
     @Get(":id")

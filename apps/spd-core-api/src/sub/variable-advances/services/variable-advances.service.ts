@@ -476,12 +476,32 @@ export class VariableAdvancesService {
         return variableAdvance;
     }
 
-    async findAllByActionIndicator(indicatorId: string, year?: number) {
-        // 1. Get Variables linked to this Action Indicator with their Contextual Accumulator
-        const variablesData = await this.variableActionRelationRepository.createQueryBuilder("var")
+    async findAllByActionIndicator(
+        indicatorId: string,
+        year?: number,
+        page: number = 1,
+        limit: number = 10,
+        search?: string
+    ) {
+        // 1. Get Variables query linked to this Action Indicator
+        const queryBuilder = this.variableActionRelationRepository.createQueryBuilder("var")
             .innerJoinAndSelect("var.variable", "v")
             .leftJoinAndSelect(VariableContextualAccumulator, "vca", "vca.actionRelationId = var.id")
-            .where("var.indicatorId = :indicatorId", { indicatorId })
+            .where("var.indicatorId = :indicatorId", { indicatorId });
+
+        // 2. Apply Search
+        if (search) {
+            queryBuilder.andWhere(new Brackets(qb => {
+                qb.where("v.code ILIKE :search", { search: `%${search}%` })
+                    .orWhere("v.name ILIKE :search", { search: `%${search}%` });
+            }));
+        }
+
+        // 3. Pagination
+        const total = await queryBuilder.getCount();
+        const totalPages = Math.ceil(total / limit);
+
+        const variablesData = await queryBuilder
             .select([
                 "v.id",
                 "v.name",
@@ -492,11 +512,16 @@ export class VariableAdvancesService {
                 "var.variableId",
                 "var.indicatorId"
             ])
+            .skip((page - 1) * limit)
+            .take(limit)
             .getRawMany();
 
-        // 2. Fetch Advances for these variables
+        // 4. Fetch Advances for these variables
         if (variablesData.length === 0) {
-            return [];
+            return {
+                data: [],
+                meta: { total, page, limit, totalPages, hasNextPage: false, hasPreviousPage: false }
+            };
         }
 
         const variableIds = variablesData.map(v => v.v_id);
@@ -512,8 +537,8 @@ export class VariableAdvancesService {
 
         const advances = await advancesQuery.getMany();
 
-        // 3. Merge Data
-        return variablesData.map(data => {
+        // 5. Merge Data
+        const data = variablesData.map(data => {
             const variableAdvances = advances.filter(a => a.variableId === data.v_id);
             return {
                 variableId: data.v_id,
@@ -525,14 +550,47 @@ export class VariableAdvancesService {
                 advances: variableAdvances
             };
         });
+
+        return {
+            data,
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages,
+                hasNextPage: page < totalPages,
+                hasPreviousPage: page > 1,
+            }
+        };
     }
 
-    async findAllByIndicativeIndicator(indicatorId: string, year?: number) {
-        // 1. Get Variables linked to this Indicative Indicator with their Contextual Accumulator
-        const variablesData = await this.variableIndicativeRelationRepository.createQueryBuilder("vir")
+    async findAllByIndicativeIndicator(
+        indicatorId: string,
+        year?: number,
+        page: number = 1,
+        limit: number = 10,
+        search?: string
+    ) {
+        // 1. Get Variables query linked to this Indicative Indicator
+        const queryBuilder = this.variableIndicativeRelationRepository.createQueryBuilder("vir")
             .innerJoinAndSelect("vir.variable", "v")
             .leftJoinAndSelect(VariableContextualAccumulator, "vca", "vca.indicativeRelationId = vir.id")
-            .where("vir.indicatorId = :indicatorId", { indicatorId })
+            .where("vir.indicatorId = :indicatorId", { indicatorId });
+
+
+        // 2. Apply Search
+        if (search) {
+            queryBuilder.andWhere(new Brackets(qb => {
+                qb.where("v.code ILIKE :search", { search: `%${search}%` })
+                    .orWhere("v.name ILIKE :search", { search: `%${search}%` });
+            }));
+        }
+
+        // 3. Pagination
+        const total = await queryBuilder.getCount();
+        const totalPages = Math.ceil(total / limit);
+
+        const variablesData = await queryBuilder
             .select([
                 "v.id",
                 "v.name",
@@ -543,11 +601,16 @@ export class VariableAdvancesService {
                 "vir.variableId",
                 "vir.indicatorId"
             ])
+            .skip((page - 1) * limit)
+            .take(limit)
             .getRawMany();
 
-        // 2. Fetch Advances for these variables
+        // 4. Fetch Advances for these variables
         if (variablesData.length === 0) {
-            return [];
+            return {
+                data: [],
+                meta: { total, page, limit, totalPages, hasNextPage: false, hasPreviousPage: false }
+            };
         }
 
         const variableIds = variablesData.map(v => v.v_id);
@@ -563,8 +626,8 @@ export class VariableAdvancesService {
 
         const advances = await advancesQuery.getMany();
 
-        // 3. Merge Data
-        return variablesData.map(data => {
+        // 5. Merge Data
+        const data = variablesData.map(data => {
             const variableAdvances = advances.filter(a => a.variableId === data.v_id);
             return {
                 variableId: data.v_id,
@@ -576,6 +639,18 @@ export class VariableAdvancesService {
                 advances: variableAdvances
             };
         });
+
+        return {
+            data,
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages,
+                hasNextPage: page < totalPages,
+                hasPreviousPage: page > 1,
+            }
+        };
     }
 
     private handleDBExceptions(error: any) {

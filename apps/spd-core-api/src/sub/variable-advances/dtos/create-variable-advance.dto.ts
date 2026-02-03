@@ -7,8 +7,6 @@ export class CreateVariableAdvanceDto {
 
     @IsNumber()
     @IsNotEmpty()
-    @Min(2000)
-    @Max(2100)
     year!: number;
 
     @IsNumber()
