@@ -9,9 +9,6 @@ export class IndicatorAdvanceDto {
     year!: number;
     month!: number | null;
     value!: number;
-    accumulatedValue!: number | null;
-    observations?: string | null;
-    evidenceUrl?: string | null;
 }
 
 export class VariableGoalDto {
@@ -49,6 +46,7 @@ export class IndicatorDto {
     name?: string;
     description?: string;
     unitMeasure?: string;
+    accumulatedAdvance?: IndicatorAdvanceDto | null;
 }
 
 export class IndicatorDetailsResponseDto {

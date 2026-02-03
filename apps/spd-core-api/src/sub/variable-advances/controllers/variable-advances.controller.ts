@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from "@nestjs/common";
 import { VariableAdvancesService } from "../services/variable-advances.service";
 import { CreateVariableAdvanceDto } from "../dtos/create-variable-advance.dto";
 
@@ -10,6 +10,7 @@ export class VariableAdvancesController {
     create(@Body() createDto: CreateVariableAdvanceDto) {
         return this.variableAdvancesService.create(createDto);
     }
+
 
     @Get()
     findAll(
@@ -67,5 +68,20 @@ export class VariableAdvancesController {
     @Get(":id")
     findOne(@Param("id", ParseUUIDPipe) id: string) {
         return this.variableAdvancesService.findOne(id);
+    }
+
+    @Get(":id/details")
+    async getDetails(
+        @Param("id", ParseUUIDPipe) id: string,
+        @Query("year") year?: string,
+        @Query("month") month?: string
+    ) {
+        const parsedYear = year && year.toString().toLowerCase() === "all" ? undefined : (year ? Number(year) : undefined);
+        const parsedMonth = month && month.toString().toLowerCase() === "all" ? undefined : (month ? Number(month) : undefined);
+        
+        if (parsedYear && isNaN(parsedYear)) throw new BadRequestException("Invalid year");
+        if (parsedMonth && isNaN(parsedMonth)) throw new BadRequestException("Invalid month");
+
+        return this.variableAdvancesService.getVariableDetails(id, parsedYear, parsedMonth);
     }
 }

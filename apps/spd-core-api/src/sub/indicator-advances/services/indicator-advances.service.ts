@@ -104,9 +104,12 @@ export class IndicatorAdvancesService {
     async getIndicatorDetails(
         indicatorId: string,
         type: 'action' | 'indicative',
-        year: number,
-        month?: number
+        year?: number | 'all',
+        month?: number | 'all'
     ): Promise<IndicatorDetailsResponseDto> {
+        // Normalize filters: undefined, 'all', or empty means "all"
+        const yearFilter = (year !== undefined && year !== 'all') ? year : null;
+        const monthFilter = (month !== undefined && month !== 'all') ? month : null;
         // 1. Fetch and validate indicator
         let indicator: ActionPlanIndicator | IndicativePlanIndicator | null;
         if (type === 'action') {
@@ -125,24 +128,31 @@ export class IndicatorAdvancesService {
             throw new NotFoundException(`Indicator with ID ${indicatorId} not found`);
         }
 
-        // 2. Fetch indicator goals (filter by year if needed)
+        // 2. Fetch indicator goals (filter by year if specified)
         const goalRepo = type === 'action' ? this.actionGoalRepo : this.indicativeGoalRepo;
+        const goalWhereClause: any = { indicatorId };
+        if (yearFilter !== null) {
+            goalWhereClause.year = yearFilter;
+        }
         const goals = await goalRepo.find({
-            where: { indicatorId, year },
+            where: goalWhereClause,
         });
 
-        // 3. Fetch indicator advances (filter by year and optionally month)
-        const advancesQueryBuilder = this.repository.createQueryBuilder('ia')
-            .where('ia.year = :year', { year });
-
-        if (month !== undefined && month !== null) {
-            advancesQueryBuilder.andWhere('ia.month = :month', { month });
-        }
+        // 3. Fetch indicator advances (filter by year and/or month if specified)
+        const advancesQueryBuilder = this.repository.createQueryBuilder('ia');
 
         if (type === 'action') {
-            advancesQueryBuilder.andWhere('ia.actionIndicatorId = :indicatorId', { indicatorId });
+            advancesQueryBuilder.where('ia.actionIndicatorId = :indicatorId', { indicatorId });
         } else {
-            advancesQueryBuilder.andWhere('ia.indicativeIndicatorId = :indicatorId', { indicatorId });
+            advancesQueryBuilder.where('ia.indicativeIndicatorId = :indicatorId', { indicatorId });
+        }
+
+        if (yearFilter !== null) {
+            advancesQueryBuilder.andWhere('ia.year = :year', { year: yearFilter });
+        }
+
+        if (monthFilter !== null) {
+            advancesQueryBuilder.andWhere('ia.month = :month', { month: monthFilter });
         }
 
         const advances = await advancesQueryBuilder.getMany();
@@ -163,18 +173,25 @@ export class IndicatorAdvancesService {
         for (const relation of relations) {
             const variable = relation.variable;
 
-            // Fetch variable goals
+            // Fetch variable goals (filter by year if specified)
+            const varGoalWhere: any = { variableId: variable.id };
+            if (yearFilter !== null) {
+                varGoalWhere.year = yearFilter;
+            }
             const variableGoals = await this.variableGoalRepo.find({
-                where: { variableId: variable.id, year },
+                where: varGoalWhere,
             });
 
-            // Fetch variable advances
+            // Fetch variable advances (filter by year and/or month if specified)
             const variableAdvancesQuery = this.variableAdvanceRepo.createQueryBuilder('va')
-                .where('va.variableId = :variableId', { variableId: variable.id })
-                .andWhere('va.year = :year', { year });
+                .where('va.variableId = :variableId', { variableId: variable.id });
 
-            if (month !== undefined && month !== null) {
-                variableAdvancesQuery.andWhere('va.month = :month', { month });
+            if (yearFilter !== null) {
+                variableAdvancesQuery.andWhere('va.year = :year', { year: yearFilter });
+            }
+
+            if (monthFilter !== null) {
+                variableAdvancesQuery.andWhere('va.month = :month', { month: monthFilter });
             }
 
             const variableAdvances = await variableAdvancesQuery.getMany();
@@ -228,13 +245,37 @@ export class IndicatorAdvancesService {
             });
         }
 
-        // 6. Build and return response
+        // 6. Fetch accumulated advance (latest by year, then by month)
+        const accumulatedAdvanceQuery = this.repository.createQueryBuilder('ia');
+
+        if (type === 'action') {
+            accumulatedAdvanceQuery.where('ia.actionIndicatorId = :indicatorId', { indicatorId });
+        } else {
+            accumulatedAdvanceQuery.where('ia.indicativeIndicatorId = :indicatorId', { indicatorId });
+        }
+
+        accumulatedAdvanceQuery
+            .orderBy('ia.year', 'DESC')
+            .addOrderBy('ia.month', 'DESC', 'NULLS LAST')
+            .limit(1);
+
+        const latestAdvance = await accumulatedAdvanceQuery.getOne();
+
+        const accumulatedAdvance: IndicatorAdvanceDto | null = latestAdvance ? {
+            id: latestAdvance.id,
+            year: latestAdvance.year,
+            month: latestAdvance.month,
+            value: Number(latestAdvance.value)
+        } : null;
+
+        // 7. Build and return response
         const indicatorDto: IndicatorDto = {
             id: indicator.id,
             code: indicator.code,
             name: indicator.name,
             description: indicator.description,
-            unitMeasure: indicator.unitMeasure?.name
+            unitMeasure: indicator.unitMeasure?.name,
+            accumulatedAdvance
         };
 
         const indicatorGoalDtos: IndicatorGoalDto[] = goals.map(goal => ({
@@ -247,10 +288,7 @@ export class IndicatorAdvancesService {
             id: advance.id,
             year: advance.year,
             month: advance.month,
-            value: Number(advance.value),
-            accumulatedValue: advance.accumulatedValue ? Number(advance.accumulatedValue) : null,
-            observations: advance.observations,
-            evidenceUrl: advance.evidenceUrl
+            value: Number(advance.value)
         }));
 
         return {

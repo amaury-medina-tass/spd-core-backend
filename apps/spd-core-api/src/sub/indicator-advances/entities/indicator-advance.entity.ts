@@ -33,15 +33,6 @@ export class IndicatorAdvance {
     @Column({ type: "decimal", precision: 18, scale: 2 })
     value: number;
 
-    @Column({ name: "accumulated_value", type: "decimal", precision: 18, scale: 2, nullable: true })
-    accumulatedValue: number | null;
-
-    @Column({ type: "text", nullable: true })
-    observations: string | null;
-
-    @Column({ name: "evidence_url", type: "text", nullable: true })
-    evidenceUrl: string | null;
-
     @CreateDateColumn({ name: "create_at" })
     createAt: Date;
 

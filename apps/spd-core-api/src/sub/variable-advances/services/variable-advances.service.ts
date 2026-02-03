@@ -209,9 +209,23 @@ export class VariableAdvancesService {
 
     private async processFormula(formula: Formula, triggeringVariableId: string, manager: any, year?: number, month?: number | null) {
         this.logger.log(`Processing formula ${formula.id} for indicator (Ind: ${formula.indicativeIndicatorId} / Act: ${formula.actionIndicatorId})`);
+        
+        let baseline: number | undefined;
+        if (formula.indicativeIndicatorId) {
+            const indicator = await manager.findOne(IndicativePlanIndicator, {
+                where: { id: formula.indicativeIndicatorId },
+                select: ["baseline"]
+            });
+            if (indicator?.baseline) {
+                baseline = parseFloat(indicator.baseline.replace(",", ".")); // Handle common decimal separator
+                if (isNaN(baseline)) baseline = 0;
+            }
+        }
+
         // Prepare Context
         const context: EvaluationContext = {
             variableId: triggeringVariableId,
+            baseline,
             fetchAdvancesSum: async (varId: string, year: number | null, months: number[]) => {
                 // Fetch sum of advances
                 const qb = manager.createQueryBuilder(VariableAdvance, "va")
@@ -398,6 +412,8 @@ export class VariableAdvancesService {
     }
 
     // ... (rest of service: findAllPaginated, findOne, etc.)
+
+    // ... (rest of service: findAllPaginated, findOne, etc.)
     async findAllPaginated(
         variableId: string,
         page: number = 1,
@@ -474,6 +490,97 @@ export class VariableAdvancesService {
         }
 
         return variableAdvance;
+    }
+
+
+    async getVariableDetails(
+        variableId: string,
+        year?: number,
+        month?: number
+    ): Promise<import("../dtos/variable-details-response.dto").VariableDetailsResponseDto> {
+        // 1. Fetch Variable
+        const variableRepo = this.dataSource.getRepository("Variable");
+        const variable = await variableRepo.findOne({ where: { id: variableId } }) as any; // Cast for now, avoiding import if possible
+
+        if (!variable) {
+            throw new NotFoundException(`Variable with ID ${variableId} not found`);
+        }
+
+        // 2. Fetch Goals
+        const goalQuery = this.variableGoalRepository.createQueryBuilder("vg")
+            .where("vg.variableId = :variableId", { variableId });
+        
+        if (year) {
+            goalQuery.andWhere("vg.year = :year", { year });
+        }
+        
+        const goals = await goalQuery.getMany();
+
+        // 3. Fetch Advances
+        const advanceQuery = this.variableAdvanceRepository.createQueryBuilder("va")
+            .where("va.variableId = :variableId", { variableId });
+
+        if (year) {
+            advanceQuery.andWhere("va.year = :year", { year });
+        }
+
+        if (month) {
+            advanceQuery.andWhere("va.month = :month", { month });
+        }
+
+        // Sort advances by year, then month
+        advanceQuery.orderBy("va.year", "ASC").addOrderBy("va.month", "ASC");
+
+        const advances = await advanceQuery.getMany();
+        
+        // 4. Fetch Quadrenniums
+        // Note: Quadrenniums are usually defined by year range (startYear, endYear). 
+        // If 'year' param is present, we could check if it falls within range, OR just return all relevant to variable?
+        // Usually details view wants all unless specifically filtered.
+        // Let's return all for the variable if no specific logic requested, or filter by overlap if year provided?
+        // User asked "Traeme los avances... y tambien ... metas", likely wants context.
+        // If year is provided, maybe specific quadrennium containing that year?
+        // Let's simply fetch all quadrenniums for the variable for now, or those intersecting the year.
+        
+        const quadQuery = this.variableQuadrenniumRepository.createQueryBuilder("vq")
+            .where("vq.variableId = :variableId", { variableId });
+
+        if (year) {
+             // If year is provided, we might want quadrenniums that cover this year?
+             // "startYear <= year AND endYear >= year"
+             quadQuery.andWhere("vq.startYear <= :year AND vq.endYear >= :year", { year });
+        }
+        
+        const quadrenniums = await quadQuery.getMany();
+
+
+        return {
+            variable: {
+                id: variable.id,
+                code: variable.code,
+                name: variable.name,
+                observations: variable.observations
+            },
+            goals: goals.map(g => ({
+                id: g.id,
+                year: g.year,
+                value: Number(g.value)
+            })),
+            quadrenniums: quadrenniums.map(q => ({
+                id: q.id,
+                startYear: q.startYear,
+                endYear: q.endYear,
+                value: Number(q.value)
+            })),
+            advances: advances.map(a => ({
+                id: a.id,
+                year: a.year,
+                month: a.month,
+                value: Number(a.value),
+                observations: a.observations, // Assuming entity has this or removed? Check entity.
+                createAt: a.createAt
+            }))
+        };
     }
 
     async findAllByActionIndicator(
@@ -656,6 +763,9 @@ export class VariableAdvancesService {
     private handleDBExceptions(error: any) {
         if (error.code === "23505") {
             throw new BadRequestException("Ya existe un avance para esta variable en el periodo especificado");
+        }
+        if (error.code === "23503") {
+            throw new BadRequestException("La variable especificada no existe");
         }
         this.logger.error(error);
     }

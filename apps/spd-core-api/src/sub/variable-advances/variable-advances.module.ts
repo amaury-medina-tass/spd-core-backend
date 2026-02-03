@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { VariableAdvance } from "./entities/variable-advance.entity";
+import { Variable } from "../../masters/variables/entities/variable.entity";
 import { VariableQuadrennium } from "../../masters/variables/entities/variable-quadrennium.entity";
 import { VariableAdvancesController } from "./controllers/variable-advances.controller";
 import { VariableAdvancesService } from "./services/variable-advances.service";
@@ -27,8 +28,9 @@ import { forwardRef } from "@nestjs/common";
             VariableIndicativeRelation,
             VariableActionRelation,
             IndicativePlanIndicatorGoal,
+            IndicativePlanIndicatorGoal,
             ActionPlanIndicatorGoal,
-            ActionPlanIndicatorGoal,
+            Variable,
         ]),
         IndicatorAdvancesModule,
         forwardRef(() => IndicatorsModule),

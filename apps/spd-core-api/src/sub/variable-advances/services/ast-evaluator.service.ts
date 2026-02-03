@@ -8,6 +8,7 @@ export interface EvaluationContext {
     fetchIndicatorGoal: (goalId: string) => Promise<number>;
     goalValues: Record<string, number>;
     subFormulaResults: Record<string, number>;
+    baseline?: number;
 }
 
 @Injectable()
@@ -34,6 +35,11 @@ export class AstEvaluatorService {
             case "const":
                 result = Number(node.value) || 0;
                 this.log(`CONST: ${result}`);
+                break;
+
+            case "baseline":
+                result = ctx.baseline || 0;
+                this.log(`BASELINE: ${result}`);
                 break;
 
             case "goal_var":

@@ -1,15 +1,26 @@
-import { IsInt, IsOptional, Max, Min } from "class-validator";
-import { Type } from "class-transformer";
+import { IsInt, IsOptional, Max, Min, IsString, ValidateIf } from "class-validator";
+import { Type, Transform } from "class-transformer";
 
 export class GetIndicatorDetailsDto {
-    @Type(() => Number)
+    @Transform(({ value }) => {
+        if (value === 'all' || value === '') return 'all';
+        const num = Number(value);
+        return isNaN(num) ? value : num;
+    })
+    @ValidateIf(o => o.year !== 'all')
     @IsInt()
-    year!: number;
+    @IsOptional()
+    year?: number | 'all';
 
-    @Type(() => Number)
+    @Transform(({ value }) => {
+        if (value === 'all' || value === '') return 'all';
+        const num = Number(value);
+        return isNaN(num) ? value : num;
+    })
+    @ValidateIf(o => o.month !== 'all')
     @IsInt()
     @Min(1)
     @Max(12)
     @IsOptional()
-    month?: number;
+    month?: number | 'all';
 }
