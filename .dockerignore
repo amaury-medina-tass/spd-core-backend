@@ -40,3 +40,8 @@ bun.lock
 test
 *.spec.ts
 *.test.ts
+
+# Local Development Utils
+docker-compose.servicebus.yml
+servicebus-emulator
+.env.example

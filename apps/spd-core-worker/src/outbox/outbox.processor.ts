@@ -1,9 +1,9 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { Cron } from "@nestjs/schedule";
-import { InjectRepository } from "@nestjs/typeorm";
-import { IsNull, Not, Repository } from "typeorm";
-import { OutboxMessage } from "@common/entities/outbox-message.entity";
-import { OutboxPublisher } from "./outbox.publisher";
+import { Injectable, Logger } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
+import { InjectRepository } from '@nestjs/typeorm';
+import { IsNull, Not, Repository } from 'typeorm';
+import { OutboxMessage } from '@common/entities/outbox-message.entity';
+import { OutboxPublisher } from './outbox.publisher';
 
 // Eventos que se procesan localmente y NO deben publicarse al bus
 const LOCAL_ONLY_EVENTS = [];
@@ -18,24 +18,31 @@ export class OutboxProcessor {
   constructor(
     @InjectRepository(OutboxMessage)
     private outbox: Repository<OutboxMessage>,
-    private publisher: OutboxPublisher
-  ) { }
+    private publisher: OutboxPublisher,
+  ) {}
 
   /**
-   * ✅ cada 2 segundos procesa outbox
+   * Cada 2 segundos procesa outbox
    * - Busca pendientes (excluyendo eventos locales como sap.sync.requested)
    * - Publica al bus
    * - Marca processed_at si ok
    * - Si falla, attempts++ y guarda last_error
    */
-  @Cron("*/2 * * * * *")
+  @Cron('*/2 * * * * *')
   async tick() {
     // Obtener mensajes pendientes excluyendo los que se procesan localmente
-    const batch = await this.outbox
-      .createQueryBuilder("msg")
-      .where("msg.processed_at IS NULL")
-      .andWhere("msg.name NOT IN (:...localEvents)", { localEvents: LOCAL_ONLY_EVENTS })
-      .orderBy("msg.occurred_at", "ASC")
+    const query = this.outbox
+      .createQueryBuilder('msg')
+      .where('msg.processed_at IS NULL');
+
+    if (LOCAL_ONLY_EVENTS.length > 0) {
+      query.andWhere('msg.name NOT IN (:...localEvents)', {
+        localEvents: LOCAL_ONLY_EVENTS,
+      });
+    }
+
+    const batch = await query
+      .orderBy('msg.occurred_at', 'ASC')
       .take(this.BATCH_SIZE)
       .getMany();
 
@@ -46,7 +53,6 @@ export class OutboxProcessor {
       }
 
       try {
-        // ✅ Envelope estándar (ideal para el bus)
         const envelope = {
           id: msg.id,
           name: msg.name,
@@ -68,7 +74,7 @@ export class OutboxProcessor {
         await this.outbox.save(msg);
 
         this.logger.error(
-          `Outbox publish failed: ${msg.id} attempts=${msg.attempts} err=${msg.last_error}`
+          `Outbox publish failed: ${msg.id} attempts=${msg.attempts} err=${msg.last_error}`,
         );
       }
     }

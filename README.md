@@ -1,98 +1,158 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# SPD Core Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Sistema de Planificación del Desarrollo - Backend API y Worker
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Descripción
 
-## Description
+Monorepo NestJS con dos aplicaciones:
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- **spd-core-api**: API REST principal (puerto 3003)
+- **spd-core-worker**: Worker para procesamiento en segundo plano y sincronización SAP
 
-## Project setup
+## Arquitectura
 
-```bash
-$ bun install
+```text
+[Cliente] ──▶ [spd-core-api] ──┬─▶ [(PostgreSQL)]
+                               │
+                               ├─▶ [(Cosmos DB - Auditoría)]
+                               │
+                               ▼
+                     [Azure Service Bus]
+                               ▲
+                               │
+[spd-core-worker] ─────────────┴─▶ [Sistema SAP]
+        │
+        └───────▶ [(PostgreSQL)]
 ```
 
-## Compile and run the project
+## Estructura del Proyecto
 
-```bash
-# development
-$ bun run start
-
-# watch mode
-$ bun run start:dev
-
-# production mode
-$ bun run start:prod
+```
+spd-core-backend/
+├── apps/
+│   ├── spd-core-api/             # API Principal (REST)
+│   │   └── src/
+│   │       ├── auth/             # Autenticación JWT y guards
+│   │       ├── common/           # Decorators, Filters, Guards compartidos
+│   │       ├── config/           # Configuración (Env, Validation)
+│   │       ├── database/         # Configuración DB
+│   │       ├── financial/        # Módulos Financieros
+│   │       │   ├── budget-records/         # Pedidos
+│   │       │   ├── cdps/                   # CDPs y posiciones
+│   │       │   ├── contract-cdp-relations/ # Relación Contrato-CDP
+│   │       │   ├── contract-positions/     # Posiciones de contrato
+│   │       │   ├── contractors/            # Contratistas
+│   │       │   ├── dependencies/           # Dependencias
+│   │       │   ├── funding-sources/        # Fuentes de financiación
+│   │       │   ├── master-contracts/       # Contratos marco
+│   │       │   ├── needs/                  # Necesidades
+│   │       │   ├── previous-studies/       # Estudios previos
+│   │       │   └── projects/               # Proyectos
+│   │       ├── masters/          # Maestros y Configuración
+│   │       │   ├── budget-modifications/   # Modificaciones pptales
+│   │       │   ├── detailed-activities/    # Actividades detalladas
+│   │       │   ├── indicators/             # Indicadores
+│   │       │   ├── mga-activities/         # Actividades MGA
+│   │       │   ├── products/               # Productos
+│   │       │   ├── rubrics/                # Posiciones Presupuestales
+│   │       │   └── variables/              # Variables
+│   │       ├── sub/              # Submódulos auxiliares
+│   │       ├── sap-sync/         # Endpoints Integración SAP
+│   │       └── outbox/           # Patrón Outbox
+│   │
+│   └── spd-core-worker/          # Worker (Segundo plano)
+│       └── src/
+│           ├── outbox/           # Procesador Outbox
+│           ├── messaging/        # Subscriber Service Bus
+│           └── sap-sync/         # Procesamiento Sincronización SAP
+│
+├── libs/
+│   └── common/                   # Librerías compartidas
+│       └── src/
+│           ├── entities/         # Entidades base y compartidas
+│           ├── messaging/        # Service Bus Publisher
+│           ├── redis/            # Cliente Redis
+│           └── types/            # Interfaces y tipos compartidos
 ```
 
-## Run tests
+## Requisitos
 
-```bash
-# unit tests
-$ bun run test
+- Node.js 20+
+- PostgreSQL 15+
+- Azure Cosmos DB (para logs de auditoría)
+- Docker Desktop
 
-# e2e tests
-$ bun run test:e2e
+## Instalación
 
-# test coverage
-$ bun run test:cov
+1. Instalar dependencias:
+
+   ```bash
+   npm install
+   ```
+
+2. Configurar variables de entorno:
+   Copiar `.env.example` a `.env` y configurar las variables.
+
+   **Autenticación:**
+   La variable `JWT_ACCESS_PUBLIC_KEY` se debe extraer utilizando la herramienta o script disponible en el microservicio de Autenticación (Auth).
+
+   **Auditoría:**
+   Es necesario configurar la conexión a Azure Cosmos DB para el registro de logs de auditoría.
+
+## Ejecución del Proyecto
+
+Para iniciar la infraestructura completa, ejecute el siguiente comando desde la carpeta de infraestructura:
+
+```powershell
+# Desde la carpeta /infra del proyecto
+docker compose up --build
 ```
 
-## Deployment
+### Ejecución Local (Solo Desarrollo)
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Si desea ejecutar servicios individuales:
 
 ```bash
-$ bun install -g @nestjs/mau
-$ mau deploy
+# API (puerto 3003)
+npm run start:api:dev
+
+# Worker (background)
+npm run start:worker:dev
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+## Azure Service Bus
 
-## Resources
+El sistema utiliza Azure Service Bus para mensajería.
 
-Check out a few resources that may come in handy when working with NestJS:
+- **Producción:** Configurar connection string de Azure.
+- **Local:** Se puede usar el emulador (`docker-compose.servicebus.yml`) o una instancia de desarrollo en la nube.
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+## Scripts Disponibles
 
-## Support
+| Script                     | Descripción                 |
+| -------------------------- | --------------------------- |
+| `npm run start:api`        | Iniciar API                 |
+| `npm run start:api:dev`    | Iniciar API (watch mode)    |
+| `npm run start:worker`     | Iniciar Worker              |
+| `npm run start:worker:dev` | Iniciar Worker (watch mode) |
+| `npm run build`            | Compilar proyecto           |
+| `npm run lint`             | Ejecutar ESLint             |
+| `npm run test`             | Ejecutar tests              |
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+## Endpoints Principales
 
-## Stay in touch
+### Financial
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+- `GET/POST /financial/cdps` - CDPs
+- `GET/POST /financial/contractors` - Contratistas
+- `GET/POST /financial/dependencies` - Dependencias
+- `GET/POST /financial/funding-sources` - Fuentes de financiación
+- `GET/POST /financial/master-contracts` - Contratos marco
+- `GET/POST /financial/projects` - Proyectos
 
-## License
+### Masters
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+- `GET/POST /masters/indicators` - Indicadores
+- `GET/POST /masters/variables` - Variables
+- `GET/POST /masters/rubrics` - Posiciones Presupuestales
+- `GET/POST /masters/products` - Productos

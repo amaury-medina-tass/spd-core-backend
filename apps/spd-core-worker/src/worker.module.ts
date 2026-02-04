@@ -11,6 +11,7 @@ import { DatabaseModule } from "../../spd-core-api/src/database/database.module"
 import { OutboxMessage } from "@common/entities/outbox-message.entity";
 import { OutboxProcessor } from "./outbox/outbox.processor";
 import { OutboxPublisher } from "./outbox/outbox.publisher";
+import { ServiceBusSubscriber } from "./messaging/servicebus.subscriber";
 import { SapSyncProcessor } from "./sap-sync/sap-sync.processor";
 import { SapApiService } from "./sap-sync/sap-api.service";
 import { SapSyncService } from "./sap-sync/sap-sync.service";
@@ -63,6 +64,6 @@ import { DetailedActivity } from "../../spd-core-api/src/masters/detailed-activi
       DetailedActivity,
     ]),
   ],
-  providers: [OutboxPublisher, OutboxProcessor, SapSyncProcessor, SapApiService, SapSyncService],
+  providers: [OutboxPublisher, OutboxProcessor, ServiceBusSubscriber, SapSyncProcessor, SapApiService, SapSyncService],
 })
 export class WorkerModule { }

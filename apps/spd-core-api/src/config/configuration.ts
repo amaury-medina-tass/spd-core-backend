@@ -15,6 +15,7 @@ export default () => ({
     connectionString: process.env.SERVICEBUS_CONNECTION_STRING ?? "",
     topic: process.env.SERVICEBUS_TOPIC ?? "spd.events",
     subjectPrefix: process.env.SERVICEBUS_SUBJECT_PREFIX ?? "SpdCore.",
+    subscription: process.env.SERVICEBUS_SUBSCRIPTION ?? "spd-worker",
   },
 
   sap: {

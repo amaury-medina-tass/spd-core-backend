@@ -1,0 +1,32 @@
+{
+  "UserConfig": {
+    "Namespaces": [
+      {
+        "Name": "sbemulatorns",
+        "Topics": [
+          {
+            "Name": "spd.events",
+            "Subscriptions": [
+              {
+                "Name": "spd-worker",
+                "Properties": {
+                  "MaxDeliveryCount": 10,
+                  "LockDuration": "PT1M",
+                  "DefaultMessageTimeToLive": "PT1H"
+                }
+              }
+            ],
+            "Properties": {
+              "DefaultMessageTimeToLive": "PT1H",
+              "MaxSizeInMegabytes": 1024
+            }
+          }
+        ],
+        "Queues": []
+      }
+    ],
+    "Logging": {
+      "Type": "Console"
+    }
+  }
+}
