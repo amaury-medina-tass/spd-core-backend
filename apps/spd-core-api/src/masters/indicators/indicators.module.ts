@@ -39,6 +39,11 @@ import { FormulasController } from "./controllers/formulas.controller";
 import { FormulasService } from "./services/formulas.service";
 import { VariableAdvancesModule } from "../../sub/variable-advances/variable-advances.module";
 import { forwardRef } from "@nestjs/common";
+import { IndicatorLocation } from "./entities/indicator-location.entity";
+import { IndicatorLocationsService } from "./services/indicator-locations.service";
+import { IndicativePlanIndicatorLocationsController } from "./controllers/indicative-plan/indicative-plan-indicator-locations.controller";
+import { ActionPlanIndicatorLocationsController } from "./controllers/action-plan/action-plan-indicator-locations.controller";
+import { LocationsModule } from "../locations/locations.module";
 
 @Module({
     imports: [
@@ -60,10 +65,10 @@ import { forwardRef } from "@nestjs/common";
             VariableQuadrennium,
             Project,
             Formula,
-            Project,
-            Formula,
+            IndicatorLocation,
         ]),
         forwardRef(() => VariableAdvancesModule),
+        LocationsModule,
     ],
     controllers: [
         IndicativePlanIndicatorsController,
@@ -74,9 +79,10 @@ import { forwardRef } from "@nestjs/common";
         ActionPlanIndicatorQuadrenniumsController,
         VariableIndicativeRelationsController,
         VariableActionRelationsController,
-        VariableActionRelationsController,
         ProjectActionIndicatorRelationsController,
         FormulasController,
+        IndicativePlanIndicatorLocationsController,
+        ActionPlanIndicatorLocationsController,
     ],
     providers: [
         IndicativePlanIndicatorsService,
@@ -87,9 +93,9 @@ import { forwardRef } from "@nestjs/common";
         ActionPlanIndicatorQuadrenniumsService,
         VariableIndicativeRelationsService,
         VariableActionRelationsService,
-        VariableActionRelationsService,
         ProjectActionIndicatorRelationsService,
         FormulasService,
+        IndicatorLocationsService,
     ],
     exports: [
         IndicativePlanIndicatorsService,
@@ -100,9 +106,10 @@ import { forwardRef } from "@nestjs/common";
         ActionPlanIndicatorQuadrenniumsService,
         VariableIndicativeRelationsService,
         VariableActionRelationsService,
-        VariableActionRelationsService,
         ProjectActionIndicatorRelationsService,
         FormulasService,
+        IndicatorLocationsService,
     ],
 })
 export class IndicatorsModule { }
+

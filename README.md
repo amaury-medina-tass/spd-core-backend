@@ -88,6 +88,8 @@ spd-core-backend/
 
    ```bash
    npm install
+   # o
+   bun install
    ```
 
 2. Configurar variables de entorno:
@@ -115,9 +117,13 @@ Si desea ejecutar servicios individuales:
 ```bash
 # API (puerto 3003)
 npm run start:api:dev
+# o
+bun run start:api:dev
 
 # Worker (background)
 npm run start:worker:dev
+# o
+bun run start:worker:dev
 ```
 
 ## Azure Service Bus
@@ -125,19 +131,22 @@ npm run start:worker:dev
 El sistema utiliza Azure Service Bus para mensajería.
 
 - **Producción:** Configurar connection string de Azure.
-- **Local:** Se puede usar el emulador (`docker-compose.servicebus.yml`) o una instancia de desarrollo en la nube.
+- **Local:** Se puede usar el emulador ejecutando:
+  ```powershell
+  docker compose -f docker-compose.servicebus.yml up -d
+  ```
 
 ## Scripts Disponibles
 
-| Script                     | Descripción                 |
-| -------------------------- | --------------------------- |
-| `npm run start:api`        | Iniciar API                 |
-| `npm run start:api:dev`    | Iniciar API (watch mode)    |
-| `npm run start:worker`     | Iniciar Worker              |
-| `npm run start:worker:dev` | Iniciar Worker (watch mode) |
-| `npm run build`            | Compilar proyecto           |
-| `npm run lint`             | Ejecutar ESLint             |
-| `npm run test`             | Ejecutar tests              |
+| Script             | Descripción                 | Comando (npm / bun)                    |
+| ------------------ | --------------------------- | -------------------------------------- |
+| `start:api`        | Iniciar API                 | `npm run start:api` / `bun ...`        |
+| `start:api:dev`    | Iniciar API (watch mode)    | `npm run start:api:dev` / `bun ...`    |
+| `start:worker`     | Iniciar Worker              | `npm run start:worker` / `bun ...`     |
+| `start:worker:dev` | Iniciar Worker (watch mode) | `npm run start:worker:dev` / `bun ...` |
+| `build`            | Compilar proyecto           | `npm run build` / `bun run build`      |
+| `lint`             | Ejecutar ESLint             | `npm run lint` / `bun run lint`        |
+| `test`             | Ejecutar tests              | `npm run test` / `bun run test`        |
 
 ## Endpoints Principales
 
