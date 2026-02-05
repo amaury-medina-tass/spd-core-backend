@@ -564,10 +564,14 @@ export class CdpPositionsService {
             throw new ConflictException({ message: "No se puede desasociar la actividad porque tiene fondos asignados", code: ErrorCodes.CDP_ACTIVITY_HAS_FUNDS });
         }
 
+        const position = await this.repo.findOne({ where: { id: positionId } });
+        const detailedActivity = await this.detailedActivityRepo.findOne({ where: { id: detailedActivityId } });
+
         try {
             await this.fundingRepo.remove(funding);
 
             await this.auditLog.logSuccess(AuditAction.CDP_ACTIVITY_DISASSOCIATED, AuditEntityType.CDP_POSITION_FUNDING, `${positionId}:${detailedActivityId}`, {
+                entityName: `${position?.positionNumber ?? positionId}:${detailedActivity?.code ?? detailedActivityId}`,
                 system: SYSTEM_NAME,
                 metadata: { positionId, detailedActivityId },
             });

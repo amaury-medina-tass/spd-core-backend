@@ -124,6 +124,7 @@ export class CdpFundingService {
             await queryRunner.commitTransaction();
 
             await this.auditLog.logSuccess(AuditAction.CDP_ACTIVITY_CONSUMED, AuditEntityType.CDP_POSITION_FUNDING, funding.id, {
+                entityName: `${position.positionNumber}:${activity.code}`,
                 system: SYSTEM_NAME,
                 metadata: { positionId, detailedActivityId, amount },
             });

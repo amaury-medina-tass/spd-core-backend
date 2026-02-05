@@ -102,12 +102,17 @@ export class IndicatorAdvancesService {
 
         const saved = await repo.save(advance);
 
+        const indicator = type === 'action'
+            ? await this.actionRepo.findOne({ where: { id: indicatorId }, select: ["code", "name"] })
+            : await this.indicativeRepo.findOne({ where: { id: indicatorId }, select: ["code", "name"] });
+        const indicatorLabel = indicator?.code ?? indicator?.name ?? indicatorId;
+
         await this.auditLog.logSuccess(
             isNew ? AuditAction.INDICATOR_ADVANCE_CREATED : AuditAction.INDICATOR_ADVANCE_UPDATED,
             AuditEntityType.INDICATOR_ADVANCE,
             saved.id,
             {
-                entityName: `${type} indicator ${indicatorId} - ${year}/${month}`,
+                entityName: `${indicatorLabel} - ${year}/${month}`,
                 system: SYSTEM_NAME,
                 metadata: { indicatorId, type, year, month, value },
             },

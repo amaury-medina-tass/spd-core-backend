@@ -1,6 +1,6 @@
 import "reflect-metadata";
 import { ConfigService } from "@nestjs/config";
-import { NestFactory, Reflector } from "@nestjs/core";
+import { NestFactory, Reflector, HttpAdapterHost } from "@nestjs/core";
 import { ValidationPipe } from "@nestjs/common";
 import { AppModule } from "./app.module";
 import { ResponseInterceptor } from "./common/interceptors/response.interceptor";
@@ -30,7 +30,8 @@ async function bootstrap() {
   app.useGlobalInterceptors(new ResponseInterceptor(reflector));
 
   // errores estándar
-  app.useGlobalFilters(new AllExceptionsFilter());
+  const httpAdapter = app.get(HttpAdapterHost);
+  app.useGlobalFilters(new AllExceptionsFilter(httpAdapter));
 
   const port = app.get(ConfigService).get<number>("port") ?? 3003;
   await app.listen(port);

@@ -34,8 +34,11 @@ export class ProjectActionIndicatorRelationsService {
             });
             const saved = await this.relationRepository.save(relation);
 
+            const indicator = await this.indicatorRepository.findOne({ where: { id: indicatorId }, select: ["id", "code", "name"] });
+            const project = await this.projectRepository.findOne({ where: { id: projectId }, select: ["id", "code", "name"] });
+
             await this.auditLog.logSuccess(AuditAction.PROJECT_ACTION_INDICATOR_ASSOCIATED, AuditEntityType.PROJECT_ACTION_INDICATOR_RELATION, saved.id, {
-                entityName: `Indicator ${indicatorId} - Project ${projectId}`,
+                entityName: `${indicator?.code ?? indicatorId} - ${project?.code ?? projectId}`,
                 system: SYSTEM_NAME,
                 metadata: { indicatorId, projectId },
             });
@@ -59,8 +62,11 @@ export class ProjectActionIndicatorRelationsService {
         const relationId = relation.id;
         await this.relationRepository.remove(relation);
 
+        const indicator = await this.indicatorRepository.findOne({ where: { id: indicatorId }, select: ["id", "code", "name"] });
+        const project = await this.projectRepository.findOne({ where: { id: projectId }, select: ["id", "code", "name"] });
+
         await this.auditLog.logSuccess(AuditAction.PROJECT_ACTION_INDICATOR_DISASSOCIATED, AuditEntityType.PROJECT_ACTION_INDICATOR_RELATION, relationId, {
-            entityName: `Indicator ${indicatorId} - Project ${projectId}`,
+            entityName: `${indicator?.code ?? indicatorId} - ${project?.code ?? projectId}`,
             system: SYSTEM_NAME,
             metadata: { indicatorId, projectId },
         });

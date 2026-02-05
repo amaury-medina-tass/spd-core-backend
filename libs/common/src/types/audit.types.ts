@@ -125,6 +125,46 @@ export enum AuditAction {
     SAP_SYNC_REQUESTED = "SAP_SYNC_REQUESTED",
     SAP_SYNC_COMPLETED = "SAP_SYNC_COMPLETED",
     SAP_SYNC_FAILED = "SAP_SYNC_FAILED",
+
+    // --- Rubrics ---
+    RUBRIC_CREATED = "RUBRIC_CREATED",
+    RUBRIC_UPDATED = "RUBRIC_UPDATED",
+    RUBRIC_DELETED = "RUBRIC_DELETED",
+
+    // --- Products ---
+    PRODUCT_CREATED = "PRODUCT_CREATED",
+    PRODUCT_UPDATED = "PRODUCT_UPDATED",
+    PRODUCT_DELETED = "PRODUCT_DELETED",
+
+    // --- Contractors ---
+    CONTRACTOR_CREATED = "CONTRACTOR_CREATED",
+    CONTRACTOR_UPDATED = "CONTRACTOR_UPDATED",
+    CONTRACTOR_DELETED = "CONTRACTOR_DELETED",
+
+    // --- Master Contracts ---
+    MASTER_CONTRACT_CREATED = "MASTER_CONTRACT_CREATED",
+    MASTER_CONTRACT_UPDATED = "MASTER_CONTRACT_UPDATED",
+    MASTER_CONTRACT_DELETED = "MASTER_CONTRACT_DELETED",
+
+    // --- Needs ---
+    NEED_CREATED = "NEED_CREATED",
+    NEED_UPDATED = "NEED_UPDATED",
+    NEED_DELETED = "NEED_DELETED",
+
+    // --- Previous Studies ---
+    PREVIOUS_STUDY_CREATED = "PREVIOUS_STUDY_CREATED",
+    PREVIOUS_STUDY_UPDATED = "PREVIOUS_STUDY_UPDATED",
+    PREVIOUS_STUDY_DELETED = "PREVIOUS_STUDY_DELETED",
+
+    // --- Dependencies ---
+    DEPENDENCY_CREATED = "DEPENDENCY_CREATED",
+    DEPENDENCY_UPDATED = "DEPENDENCY_UPDATED",
+    DEPENDENCY_DELETED = "DEPENDENCY_DELETED",
+
+    // --- CDPs ---
+    CDP_CREATED = "CDP_CREATED",
+    CDP_UPDATED = "CDP_UPDATED",
+    CDP_DELETED = "CDP_DELETED",
 }
 
 // ============================================================
@@ -284,6 +324,46 @@ export const ACTION_LABELS: Record<AuditAction, string> = {
     [AuditAction.SAP_SYNC_REQUESTED]: "Sincronización SAP Solicitada",
     [AuditAction.SAP_SYNC_COMPLETED]: "Sincronización SAP Completada",
     [AuditAction.SAP_SYNC_FAILED]: "Sincronización SAP Fallida",
+
+    // Rubrics
+    [AuditAction.RUBRIC_CREATED]: "Rubro Creado",
+    [AuditAction.RUBRIC_UPDATED]: "Rubro Actualizado",
+    [AuditAction.RUBRIC_DELETED]: "Rubro Eliminado",
+
+    // Products
+    [AuditAction.PRODUCT_CREATED]: "Producto Creado",
+    [AuditAction.PRODUCT_UPDATED]: "Producto Actualizado",
+    [AuditAction.PRODUCT_DELETED]: "Producto Eliminado",
+
+    // Contractors
+    [AuditAction.CONTRACTOR_CREATED]: "Contratista Creado",
+    [AuditAction.CONTRACTOR_UPDATED]: "Contratista Actualizado",
+    [AuditAction.CONTRACTOR_DELETED]: "Contratista Eliminado",
+
+    // Master Contracts
+    [AuditAction.MASTER_CONTRACT_CREATED]: "Contrato Marco Creado",
+    [AuditAction.MASTER_CONTRACT_UPDATED]: "Contrato Marco Actualizado",
+    [AuditAction.MASTER_CONTRACT_DELETED]: "Contrato Marco Eliminado",
+
+    // Needs
+    [AuditAction.NEED_CREATED]: "Necesidad Creada",
+    [AuditAction.NEED_UPDATED]: "Necesidad Actualizada",
+    [AuditAction.NEED_DELETED]: "Necesidad Eliminada",
+
+    // Previous Studies
+    [AuditAction.PREVIOUS_STUDY_CREATED]: "Estudio Previo Creado",
+    [AuditAction.PREVIOUS_STUDY_UPDATED]: "Estudio Previo Actualizado",
+    [AuditAction.PREVIOUS_STUDY_DELETED]: "Estudio Previo Eliminado",
+
+    // Dependencies
+    [AuditAction.DEPENDENCY_CREATED]: "Dependencia Creada",
+    [AuditAction.DEPENDENCY_UPDATED]: "Dependencia Actualizada",
+    [AuditAction.DEPENDENCY_DELETED]: "Dependencia Eliminada",
+
+    // CDPs
+    [AuditAction.CDP_CREATED]: "CDP Creado",
+    [AuditAction.CDP_UPDATED]: "CDP Actualizado",
+    [AuditAction.CDP_DELETED]: "CDP Eliminado",
 };
 
 // ============================================================

@@ -52,7 +52,7 @@ export class VariableLocationsService {
         const saved = await this.variableLocationRepository.save(relation);
 
         await this.auditLog.logSuccess(AuditAction.VARIABLE_LOCATION_ADDED, AuditEntityType.VARIABLE_LOCATION, saved.id, {
-            entityName: `Variable ${variableId} - Location ${locationId}`,
+            entityName: `${variable.code} - ${location.address ?? locationId}`,
             system: SYSTEM_NAME,
             metadata: { variableId, locationId },
         });
@@ -69,11 +69,14 @@ export class VariableLocationsService {
             throw new NotFoundException({ message: "Relación no encontrada", code: ErrorCodes.VARIABLE_LOCATION_NOT_FOUND });
         }
 
+        const variable = await this.variableRepository.findOne({ where: { id: variableId } });
+        const location = await this.locationRepository.findOne({ where: { id: locationId } });
+
         const relationId = relation.id;
         await this.variableLocationRepository.remove(relation);
 
         await this.auditLog.logSuccess(AuditAction.VARIABLE_LOCATION_REMOVED, AuditEntityType.VARIABLE_LOCATION, relationId, {
-            entityName: `Variable ${variableId} - Location ${locationId}`,
+            entityName: `${variable?.code ?? variableId} - ${location?.address ?? locationId}`,
             system: SYSTEM_NAME,
             metadata: { variableId, locationId },
         });

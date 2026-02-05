@@ -67,7 +67,7 @@ export class IndicatorLocationsService {
         const saved = await this.indicatorLocationRepository.save(relation);
 
         await this.auditLog.logSuccess(AuditAction.INDICATOR_LOCATION_ADDED, AuditEntityType.INDICATOR_LOCATION, saved.id, {
-            entityName: `Indicative Indicator ${indicatorId} - Location ${locationId}`,
+            entityName: `${indicator.code ?? indicatorId} - ${location.address ?? locationId}`,
             system: SYSTEM_NAME,
             metadata: { indicatorId, locationId, type: 'indicative' },
         });
@@ -104,7 +104,7 @@ export class IndicatorLocationsService {
         const saved = await this.indicatorLocationRepository.save(relation);
 
         await this.auditLog.logSuccess(AuditAction.INDICATOR_LOCATION_ADDED, AuditEntityType.INDICATOR_LOCATION, saved.id, {
-            entityName: `Action Indicator ${indicatorId} - Location ${locationId}`,
+            entityName: `${indicator.code ?? indicatorId} - ${location.address ?? locationId}`,
             system: SYSTEM_NAME,
             metadata: { indicatorId, locationId, type: 'action' },
         });
@@ -124,8 +124,11 @@ export class IndicatorLocationsService {
         const relationId = relation.id;
         await this.indicatorLocationRepository.remove(relation);
 
+        const indicator = await this.indicativePlanIndicatorRepository.findOne({ where: { id: indicatorId } });
+        const location = await this.locationRepository.findOne({ where: { id: locationId } });
+
         await this.auditLog.logSuccess(AuditAction.INDICATOR_LOCATION_REMOVED, AuditEntityType.INDICATOR_LOCATION, relationId, {
-            entityName: `Indicative Indicator ${indicatorId} - Location ${locationId}`,
+            entityName: `${indicator?.code ?? indicatorId} - ${location?.address ?? locationId}`,
             system: SYSTEM_NAME,
             metadata: { indicatorId, locationId, type: 'indicative' },
         });
@@ -143,8 +146,11 @@ export class IndicatorLocationsService {
         const relationId = relation.id;
         await this.indicatorLocationRepository.remove(relation);
 
+        const indicator = await this.actionPlanIndicatorRepository.findOne({ where: { id: indicatorId } });
+        const location = await this.locationRepository.findOne({ where: { id: locationId } });
+
         await this.auditLog.logSuccess(AuditAction.INDICATOR_LOCATION_REMOVED, AuditEntityType.INDICATOR_LOCATION, relationId, {
-            entityName: `Action Indicator ${indicatorId} - Location ${locationId}`,
+            entityName: `${indicator?.code ?? indicatorId} - ${location?.address ?? locationId}`,
             system: SYSTEM_NAME,
             metadata: { indicatorId, locationId, type: 'action' },
         });

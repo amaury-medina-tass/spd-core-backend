@@ -14,6 +14,7 @@ import { VariableGoal } from "../../../masters/variables/entities/variable-goal.
 import { VariableIndicativeRelation } from "../../../masters/indicators/entities/indicative-plan/variable-indicative-relation.entity";
 import { VariableActionRelation } from "../../../masters/indicators/entities/action-plan/variable-action-relation.entity";
 import { VariableQuadrennium } from "../../../masters/variables/entities/variable-quadrennium.entity";
+import { Variable } from "../../../masters/variables/entities/variable.entity";
 
 // Placeholder imports for Goal repositories - assuming generic approach or direct query
 import { IndicativePlanIndicator } from "../../../masters/indicators/entities/indicative-plan/indicative-plan-indicator.entity";
@@ -71,8 +72,10 @@ export class VariableAdvancesService {
 
             await queryRunner.commitTransaction();
 
+            const variable = await this.dataSource.getRepository(Variable).findOne({ where: { id: savedAdvance.variableId }, select: ["code"] });
+
             await this.auditLog.logSuccess(AuditAction.VARIABLE_ADVANCE_CREATED, AuditEntityType.VARIABLE_ADVANCE, savedAdvance.id, {
-                entityName: `Variable ${savedAdvance.variableId} - ${savedAdvance.year}/${savedAdvance.month}`,
+                entityName: `${variable?.code ?? savedAdvance.variableId} - ${savedAdvance.year}/${savedAdvance.month}`,
                 system: SYSTEM_NAME,
                 metadata: { variableId: savedAdvance.variableId, year: savedAdvance.year, month: savedAdvance.month, value: savedAdvance.value },
             });

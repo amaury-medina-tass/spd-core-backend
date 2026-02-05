@@ -64,7 +64,7 @@ export class FormulasService {
     const saved = await this.formulaRepo.save(formula);
 
     await this.auditLog.logSuccess(AuditAction.FORMULA_CREATED, AuditEntityType.FORMULA, saved.id, {
-      entityName: `Formula ${saved.id}`,
+      entityName: saved.expression ?? `Formula ${saved.id}`,
       system: SYSTEM_NAME,
       metadata: { indicativeIndicatorId: saved.indicativeIndicatorId, actionIndicatorId: saved.actionIndicatorId },
     });
@@ -91,7 +91,7 @@ export class FormulasService {
     const saved = await this.formulaRepo.save(formula);
 
     await this.auditLog.logSuccess(AuditAction.FORMULA_UPDATED, AuditEntityType.FORMULA, saved.id, {
-      entityName: `Formula ${saved.id}`,
+      entityName: saved.expression ?? `Formula ${saved.id}`,
       system: SYSTEM_NAME,
     });
 

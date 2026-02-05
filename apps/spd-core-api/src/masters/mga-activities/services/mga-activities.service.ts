@@ -373,14 +373,30 @@ export class MgaActivitiesService {
 
     async addDetailedRelation(mgaActivityId: string, detailedActivityId: string): Promise<MgaDetailedRelation> {
         // Verify MGA activity exists
-        await this.findOne(mgaActivityId);
+        const mgaActivity = await this.mgaActivityRepository.findOne({ where: { id: mgaActivityId } });
+        if (!mgaActivity) {
+            throw new NotFoundException({ message: `MGA Activity with id ${mgaActivityId} not found`, code: ErrorCodes.MGA_ACTIVITY_NOT_FOUND });
+        }
+
+        const detailedActivity = await this.detailedActivityRepository.findOne({ where: { id: detailedActivityId } });
+        if (!detailedActivity) {
+            throw new NotFoundException({ message: `Detailed Activity with id ${detailedActivityId} not found`, code: ErrorCodes.DETAILED_ACTIVITY_NOT_FOUND });
+        }
 
         try {
             const relation = this.mgaDetailedRelationRepository.create({
                 mgaActivityId,
                 detailedActivityId,
             });
-            return await this.mgaDetailedRelationRepository.save(relation);
+            const saved = await this.mgaDetailedRelationRepository.save(relation);
+
+            await this.auditLog.logSuccess(AuditAction.MGA_DETAILED_RELATION_ADDED, AuditEntityType.MGA_DETAILED_RELATION, saved.id, {
+                entityName: `${mgaActivity.code} - ${detailedActivity.code}`,
+                system: SYSTEM_NAME,
+                metadata: { mgaActivityId, detailedActivityId },
+            });
+
+            return saved;
         } catch (error) {
             this.handleDBExceptions(error);
             throw error;
@@ -396,7 +412,16 @@ export class MgaActivitiesService {
             throw new NotFoundException(`Relation between MGA Activity ${mgaActivityId} and Detailed Activity ${detailedActivityId} not found`);
         }
 
+        const mgaActivity = await this.mgaActivityRepository.findOne({ where: { id: mgaActivityId } });
+        const detailedActivity = await this.detailedActivityRepository.findOne({ where: { id: detailedActivityId } });
+
         await this.mgaDetailedRelationRepository.remove(relation);
+
+        await this.auditLog.logSuccess(AuditAction.MGA_DETAILED_RELATION_REMOVED, AuditEntityType.MGA_DETAILED_RELATION, `${mgaActivityId}:${detailedActivityId}`, {
+            entityName: `${mgaActivity?.code ?? mgaActivityId} - ${detailedActivity?.code ?? detailedActivityId}`,
+            system: SYSTEM_NAME,
+            metadata: { mgaActivityId, detailedActivityId },
+        });
     }
 
     async getDetailedRelations(mgaActivityId: string): Promise<MgaDetailedRelation[]> {

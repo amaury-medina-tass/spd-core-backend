@@ -11,14 +11,14 @@ export class VariableAdvancesController {
     constructor(private readonly variableAdvancesService: VariableAdvancesService) { }
 
     @Post()
-    @RequirePermission("/sub/variable-advances", "CREATE")
+    @RequirePermission("/sub/variables", "CREATE")
     create(@Body() createDto: CreateVariableAdvanceDto) {
         return this.variableAdvancesService.create(createDto);
     }
 
 
     @Get()
-    @RequirePermission("/sub/variable-advances", "READ")
+    @RequirePermission("/sub/variables", "READ")
     findAll(
         @Query("variableId", ParseUUIDPipe) variableId: string,
         @Query("page") page: number,
@@ -38,7 +38,7 @@ export class VariableAdvancesController {
     }
 
     @Get("contextual/action-indicator/:indicatorId")
-    @RequirePermission("/sub/variable-advances", "READ")
+    @RequirePermission("/sub/variables", "READ")
     findAllByActionIndicator(
         @Param("indicatorId", ParseUUIDPipe) indicatorId: string,
         @Query("year") year?: number,
@@ -56,7 +56,7 @@ export class VariableAdvancesController {
     }
 
     @Get("contextual/indicative-indicator/:indicatorId")
-    @RequirePermission("/sub/variable-advances", "READ")
+    @RequirePermission("/sub/variables", "READ")
     findAllByIndicativeIndicator(
         @Param("indicatorId", ParseUUIDPipe) indicatorId: string,
         @Query("year") year?: number,
@@ -74,13 +74,13 @@ export class VariableAdvancesController {
     }
 
     @Get(":id")
-    @RequirePermission("/sub/variable-advances", "READ")
+    @RequirePermission("/sub/variables", "READ")
     findOne(@Param("id", ParseUUIDPipe) id: string) {
         return this.variableAdvancesService.findOne(id);
     }
 
     @Get(":id/details")
-    @RequirePermission("/sub/variable-advances", "READ")
+    @RequirePermission("/sub/variables", "READ")
     async getDetails(
         @Param("id", ParseUUIDPipe) id: string,
         @Query("year") year?: string,

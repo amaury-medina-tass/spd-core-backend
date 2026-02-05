@@ -12,7 +12,7 @@ export class IndicatorAdvancesController {
     constructor(private readonly service: IndicatorAdvancesService) { }
 
     @Get(':type/:indicatorId/detailed')
-    @RequirePermission("/sub/indicator-advances", "READ")
+    @RequirePermission("/sub/indicators", "READ")
     async getIndicatorDetails(
         @Param('type') type: 'action' | 'indicative',
         @Param('indicatorId') indicatorId: string,

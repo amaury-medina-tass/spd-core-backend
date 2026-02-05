@@ -33,8 +33,11 @@ export class VariableIndicativeRelationsService {
             });
             const saved = await this.variableIndicativeRelationRepository.save(relation);
 
+            const indicator = await this.indicativePlanIndicatorRepository.findOne({ where: { id: indicatorId }, select: ["id", "code", "name"] });
+            const variable = await this.variableRepository.findOne({ where: { id: variableId }, select: ["id", "code", "name"] });
+
             await this.auditLog.logSuccess(AuditAction.VARIABLE_INDICATIVE_RELATION_ASSOCIATED, AuditEntityType.VARIABLE_INDICATIVE_RELATION, saved.id, {
-                entityName: `Indicator ${indicatorId} - Variable ${variableId}`,
+                entityName: `${indicator?.code ?? indicatorId} - ${variable?.code ?? variableId}`,
                 system: SYSTEM_NAME,
                 metadata: { indicatorId, variableId },
             });
@@ -58,8 +61,11 @@ export class VariableIndicativeRelationsService {
         const relationId = relation.id;
         await this.variableIndicativeRelationRepository.remove(relation);
 
+        const indicator = await this.indicativePlanIndicatorRepository.findOne({ where: { id: indicatorId }, select: ["id", "code", "name"] });
+        const variable = await this.variableRepository.findOne({ where: { id: variableId }, select: ["id", "code", "name"] });
+
         await this.auditLog.logSuccess(AuditAction.VARIABLE_INDICATIVE_RELATION_DISASSOCIATED, AuditEntityType.VARIABLE_INDICATIVE_RELATION, relationId, {
-            entityName: `Indicator ${indicatorId} - Variable ${variableId}`,
+            entityName: `${indicator?.code ?? indicatorId} - ${variable?.code ?? variableId}`,
             system: SYSTEM_NAME,
             metadata: { indicatorId, variableId },
         });
