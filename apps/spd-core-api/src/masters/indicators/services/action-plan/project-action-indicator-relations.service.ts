@@ -1,6 +1,10 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Brackets, Repository } from "typeorm";
+import { AuditLogService } from "@common/cosmosdb/audit-log.service";
+import { AuditAction, AuditEntityType } from "@common/types/audit.types";
+import { ErrorCodes } from "@common/errors/error-codes";
+import { SYSTEM_NAME } from "../../../../shared/constants";
 import { ProjectActionIndicatorRelation } from "../../entities/action-plan/project-action-indicator-relation.entity";
 import { ActionPlanIndicator } from "../../entities/action-plan/action-plan-indicator.entity";
 import { Project } from "../../../../financial/projects/entities/project.entity";
@@ -16,6 +20,7 @@ export class ProjectActionIndicatorRelationsService {
         private readonly indicatorRepository: Repository<ActionPlanIndicator>,
         @InjectRepository(Project)
         private readonly projectRepository: Repository<Project>,
+        private readonly auditLog: AuditLogService,
     ) { }
 
     async associate(indicatorId: string, projectId: string): Promise<ProjectActionIndicatorRelation> {
@@ -27,7 +32,15 @@ export class ProjectActionIndicatorRelationsService {
                 projectId,
                 indicatorId,
             });
-            return await this.relationRepository.save(relation);
+            const saved = await this.relationRepository.save(relation);
+
+            await this.auditLog.logSuccess(AuditAction.PROJECT_ACTION_INDICATOR_ASSOCIATED, AuditEntityType.PROJECT_ACTION_INDICATOR_RELATION, saved.id, {
+                entityName: `Indicator ${indicatorId} - Project ${projectId}`,
+                system: SYSTEM_NAME,
+                metadata: { indicatorId, projectId },
+            });
+
+            return saved;
         } catch (error) {
             this.handleDBExceptions(error);
             throw error;
@@ -40,10 +53,17 @@ export class ProjectActionIndicatorRelationsService {
         });
 
         if (!relation) {
-            throw new NotFoundException(`Relation between Indicator ${indicatorId} and Project ${projectId} not found`);
+            throw new NotFoundException({ message: `Relation between Indicator ${indicatorId} and Project ${projectId} not found`, code: ErrorCodes.PROJECT_ACTION_INDICATOR_RELATION_NOT_FOUND });
         }
 
+        const relationId = relation.id;
         await this.relationRepository.remove(relation);
+
+        await this.auditLog.logSuccess(AuditAction.PROJECT_ACTION_INDICATOR_DISASSOCIATED, AuditEntityType.PROJECT_ACTION_INDICATOR_RELATION, relationId, {
+            entityName: `Indicator ${indicatorId} - Project ${projectId}`,
+            system: SYSTEM_NAME,
+            metadata: { indicatorId, projectId },
+        });
     }
 
     async findPaginated(
@@ -109,14 +129,14 @@ export class ProjectActionIndicatorRelationsService {
     private async ensureIndicatorExists(indicatorId: string) {
         const indicator = await this.indicatorRepository.findOne({ where: { id: indicatorId } });
         if (!indicator) {
-            throw new NotFoundException(`Indicator with id ${indicatorId} not found`);
+            throw new NotFoundException({ message: `Indicator with id ${indicatorId} not found`, code: ErrorCodes.ACTION_INDICATOR_NOT_FOUND });
         }
     }
 
     private async ensureProjectExists(projectId: string) {
         const project = await this.projectRepository.findOne({ where: { id: projectId } });
         if (!project) {
-            throw new NotFoundException(`Project with id ${projectId} not found`);
+            throw new NotFoundException({ message: `Project with id ${projectId} not found`, code: ErrorCodes.PROJECT_NOT_FOUND });
         }
     }
 

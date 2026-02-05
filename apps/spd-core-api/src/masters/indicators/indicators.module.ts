@@ -44,6 +44,8 @@ import { IndicatorLocationsService } from "./services/indicator-locations.servic
 import { IndicativePlanIndicatorLocationsController } from "./controllers/indicative-plan/indicative-plan-indicator-locations.controller";
 import { ActionPlanIndicatorLocationsController } from "./controllers/action-plan/action-plan-indicator-locations.controller";
 import { LocationsModule } from "../locations/locations.module";
+import { VariableLocation } from "../variables/entities/variable-location.entity";
+import { Commune } from "../locations/entities/commune.entity";
 
 @Module({
     imports: [
@@ -66,6 +68,8 @@ import { LocationsModule } from "../locations/locations.module";
             Project,
             Formula,
             IndicatorLocation,
+            VariableLocation,
+            Commune,
         ]),
         forwardRef(() => VariableAdvancesModule),
         LocationsModule,

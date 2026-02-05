@@ -6,6 +6,10 @@ import { CdpPositionFunding } from "../entities/cdp-position-funding.entity";
 import { DetailedActivity } from "../../../masters/detailed-activities/entities/detailed-activity.entity";
 import { BudgetRecord } from "../../budget-records/entities/budget-record.entity";
 import { CdpTableRowDto } from "../dtos/cdp-table-row.dto";
+import { AuditLogService } from "@common/cosmosdb/audit-log.service";
+import { AuditAction, AuditEntityType } from "@common/types/audit.types";
+import { ErrorCodes } from "@common/errors/error-codes";
+import { SYSTEM_NAME } from "../../../shared/constants";
 
 @Injectable()
 export class CdpPositionsService {
@@ -18,6 +22,7 @@ export class CdpPositionsService {
         private detailedActivityRepo: Repository<DetailedActivity>,
         @InjectRepository(BudgetRecord)
         private budgetRecordRepo: Repository<BudgetRecord>,
+        private readonly auditLog: AuditLogService,
     ) { }
 
     async findByCdpId(cdpId: string, search?: string) {
@@ -248,7 +253,7 @@ export class CdpPositionsService {
             .getRawOne();
 
         if (!row) {
-            throw new NotFoundException("Posición de CDP no encontrada");
+            throw new NotFoundException({ message: "Posición de CDP no encontrada", code: ErrorCodes.CDP_POSITION_NOT_FOUND });
         }
 
         // Query para obtener los RPs (BudgetRecords) asociados al CDP
@@ -370,10 +375,18 @@ export class CdpPositionsService {
     async updateObservations(id: string, observations: string) {
         // We can just get the entity directly for update to be efficient
         const position = await this.repo.findOne({ where: { id } });
-        if (!position) throw new NotFoundException("Posición de CDP no encontrada");
+        if (!position) throw new NotFoundException({ message: "Posición de CDP no encontrada", code: ErrorCodes.CDP_POSITION_NOT_FOUND });
 
         position.observations = observations;
-        return this.repo.save(position);
+        const saved = await this.repo.save(position);
+
+        await this.auditLog.logSuccess(AuditAction.CDP_POSITION_OBSERVATIONS_UPDATED, AuditEntityType.CDP_POSITION, id, {
+            entityName: position.positionNumber,
+            system: SYSTEM_NAME,
+            metadata: { positionId: id, observations },
+        });
+
+        return saved;
     }
 
     /**
@@ -403,7 +416,7 @@ export class CdpPositionsService {
             .getOne();
 
         if (!position) {
-            throw new NotFoundException("Posición de CDP no encontrada");
+            throw new NotFoundException({ message: "Posición de CDP no encontrada", code: ErrorCodes.CDP_POSITION_NOT_FOUND });
         }
 
         // Get project IDs from CDP
@@ -499,24 +512,24 @@ export class CdpPositionsService {
             .getOne();
 
         if (!position) {
-            throw new NotFoundException("Posición de CDP no encontrada");
+            throw new NotFoundException({ message: "Posición de CDP no encontrada", code: ErrorCodes.CDP_POSITION_NOT_FOUND });
         }
 
         const detailedActivity = await this.detailedActivityRepo.findOne({ where: { id: detailedActivityId } });
         if (!detailedActivity) {
-            throw new NotFoundException("Actividad detallada no encontrada");
+            throw new NotFoundException({ message: "Actividad detallada no encontrada", code: ErrorCodes.DETAILED_ACTIVITY_NOT_FOUND });
         }
 
         const projectIds = position.cdp?.cdpProjects?.map(cp => cp.projectId) || [];
         if (!projectIds.includes(detailedActivity.projectId)) {
-            throw new BadRequestException("La actividad detallada no pertenece al mismo proyecto del CDP");
+            throw new BadRequestException({ message: "La actividad detallada no pertenece al mismo proyecto del CDP", code: ErrorCodes.CDP_ACTIVITY_WRONG_PROJECT });
         }
 
         const existingFunding = await this.fundingRepo.findOne({
             where: { cdpPositionId: positionId, detailedActivityId: detailedActivityId }
         });
         if (existingFunding) {
-            throw new ConflictException("La actividad ya está asociada a esta posición CDP");
+            throw new ConflictException({ message: "La actividad ya está asociada a esta posición CDP", code: ErrorCodes.CDP_ACTIVITY_ALREADY_ASSOCIATED });
         }
 
         const funding = this.fundingRepo.create({
@@ -524,7 +537,15 @@ export class CdpPositionsService {
             detailedActivityId: detailedActivityId,
         });
 
-        return this.fundingRepo.save(funding);
+        const saved = await this.fundingRepo.save(funding);
+
+        await this.auditLog.logSuccess(AuditAction.CDP_ACTIVITY_ASSOCIATED, AuditEntityType.CDP_POSITION_FUNDING, saved.id, {
+            entityName: `${position.positionNumber}:${detailedActivity.code}`,
+            system: SYSTEM_NAME,
+            metadata: { positionId, detailedActivityId },
+        });
+
+        return saved;
     }
 
     async disassociateActivity(positionId: string, detailedActivityId: string): Promise<void> {
@@ -533,21 +554,26 @@ export class CdpPositionsService {
         });
 
         if (!funding) {
-            throw new NotFoundException("La relación entre la posición y la actividad no existe");
+            throw new NotFoundException({ message: "La relación entre la posición y la actividad no existe", code: ErrorCodes.CDP_ACTIVITY_NOT_ASSOCIATED });
         }
 
         const hasBalance = Number(funding.balance || 0) > 0;
         const hasAssignedValue = Number(funding.assignedValue || 0) > 0;
 
         if (hasBalance || hasAssignedValue) {
-            throw new ConflictException("No se puede desasociar la actividad porque tiene fondos asignados");
+            throw new ConflictException({ message: "No se puede desasociar la actividad porque tiene fondos asignados", code: ErrorCodes.CDP_ACTIVITY_HAS_FUNDS });
         }
 
         try {
             await this.fundingRepo.remove(funding);
+
+            await this.auditLog.logSuccess(AuditAction.CDP_ACTIVITY_DISASSOCIATED, AuditEntityType.CDP_POSITION_FUNDING, `${positionId}:${detailedActivityId}`, {
+                system: SYSTEM_NAME,
+                metadata: { positionId, detailedActivityId },
+            });
         } catch (error: any) {
             if (error.code === "23503") {
-                throw new ConflictException("No se puede desasociar la actividad porque está siendo utilizada en posiciones de contrato");
+                throw new ConflictException({ message: "No se puede desasociar la actividad porque está siendo utilizada en posiciones de contrato", code: ErrorCodes.CDP_ACTIVITY_IN_USE });
             }
             throw error;
         }

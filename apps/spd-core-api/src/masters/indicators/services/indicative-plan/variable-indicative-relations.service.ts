@@ -1,6 +1,10 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Brackets, Repository } from "typeorm";
+import { AuditLogService } from "@common/cosmosdb/audit-log.service";
+import { AuditAction, AuditEntityType } from "@common/types/audit.types";
+import { ErrorCodes } from "@common/errors/error-codes";
+import { SYSTEM_NAME } from "../../../../shared/constants";
 import { VariableIndicativeRelation } from "../../entities/indicative-plan/variable-indicative-relation.entity";
 import { IndicativePlanIndicator } from "../../entities/indicative-plan/indicative-plan-indicator.entity";
 import { Variable } from "../../../variables/entities/variable.entity";
@@ -16,6 +20,7 @@ export class VariableIndicativeRelationsService {
         private readonly indicativePlanIndicatorRepository: Repository<IndicativePlanIndicator>,
         @InjectRepository(Variable)
         private readonly variableRepository: Repository<Variable>,
+        private readonly auditLog: AuditLogService,
     ) { }
 
     async associate(indicatorId: string, variableId: string): Promise<VariableIndicativeRelation> {
@@ -26,7 +31,15 @@ export class VariableIndicativeRelationsService {
                 variableId,
                 indicatorId,
             });
-            return await this.variableIndicativeRelationRepository.save(relation);
+            const saved = await this.variableIndicativeRelationRepository.save(relation);
+
+            await this.auditLog.logSuccess(AuditAction.VARIABLE_INDICATIVE_RELATION_ASSOCIATED, AuditEntityType.VARIABLE_INDICATIVE_RELATION, saved.id, {
+                entityName: `Indicator ${indicatorId} - Variable ${variableId}`,
+                system: SYSTEM_NAME,
+                metadata: { indicatorId, variableId },
+            });
+
+            return saved;
         } catch (error) {
             this.handleDBExceptions(error);
             throw error;
@@ -39,10 +52,17 @@ export class VariableIndicativeRelationsService {
         });
 
         if (!relation) {
-            throw new NotFoundException(`Relation between Indicator ${indicatorId} and Variable ${variableId} not found`);
+            throw new NotFoundException({ message: `Relation between Indicator ${indicatorId} and Variable ${variableId} not found`, code: ErrorCodes.VARIABLE_INDICATOR_RELATION_NOT_FOUND });
         }
 
+        const relationId = relation.id;
         await this.variableIndicativeRelationRepository.remove(relation);
+
+        await this.auditLog.logSuccess(AuditAction.VARIABLE_INDICATIVE_RELATION_DISASSOCIATED, AuditEntityType.VARIABLE_INDICATIVE_RELATION, relationId, {
+            entityName: `Indicator ${indicatorId} - Variable ${variableId}`,
+            system: SYSTEM_NAME,
+            metadata: { indicatorId, variableId },
+        });
     }
 
     async findPaginated(
@@ -108,7 +128,7 @@ export class VariableIndicativeRelationsService {
     private async ensureIndicatorExists(indicatorId: string) {
         const indicator = await this.indicativePlanIndicatorRepository.findOne({ where: { id: indicatorId } });
         if (!indicator) {
-            throw new NotFoundException(`Indicator with id ${indicatorId} not found`);
+            throw new NotFoundException({ message: `Indicator with id ${indicatorId} not found`, code: ErrorCodes.INDICATIVE_INDICATOR_NOT_FOUND });
         }
     }
 

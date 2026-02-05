@@ -1,6 +1,10 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, Brackets } from "typeorm";
+import { AuditLogService } from "@common/cosmosdb/audit-log.service";
+import { AuditAction, AuditEntityType } from "@common/types/audit.types";
+import { ErrorCodes } from "@common/errors/error-codes";
+import { SYSTEM_NAME } from "../../../shared/constants";
 import { VariableQuadrennium } from "../entities/variable-quadrennium.entity";
 import { CreateVariableQuadrenniumDto } from "../dtos/create-variable-quadrennium.dto";
 import { UpdateVariableQuadrenniumDto } from "../dtos/update-variable-quadrennium.dto";
@@ -12,6 +16,7 @@ export class VariableQuadrenniumsService {
     constructor(
         @InjectRepository(VariableQuadrennium)
         private readonly variableQuadrenniumRepository: Repository<VariableQuadrennium>,
+        private readonly auditLog: AuditLogService,
     ) { }
 
     async create(createDto: CreateVariableQuadrenniumDto): Promise<VariableQuadrennium> {
@@ -21,7 +26,15 @@ export class VariableQuadrenniumsService {
 
         try {
             const variableQuadrennium = this.variableQuadrenniumRepository.create(createDto);
-            return await this.variableQuadrenniumRepository.save(variableQuadrennium);
+            const saved = await this.variableQuadrenniumRepository.save(variableQuadrennium);
+
+            await this.auditLog.logSuccess(AuditAction.VARIABLE_QUADRENNIUM_CREATED, AuditEntityType.VARIABLE_QUADRENNIUM, saved.id, {
+                entityName: `Variable Quadrennium ${saved.startYear}-${saved.endYear}`,
+                system: SYSTEM_NAME,
+                metadata: { variableId: saved.variableId, startYear: saved.startYear, endYear: saved.endYear, value: saved.value },
+            });
+
+            return saved;
         } catch (error) {
             this.handleDBExceptions(error);
             throw error;
@@ -101,7 +114,7 @@ export class VariableQuadrenniumsService {
         });
 
         if (!variableQuadrennium) {
-            throw new NotFoundException(`Variable Quadrennium with id ${id} not found`);
+            throw new NotFoundException({ message: `Variable Quadrennium with id ${id} not found`, code: ErrorCodes.VARIABLE_QUADRENNIUM_NOT_FOUND });
         }
 
         if ((variableQuadrennium.endYear - variableQuadrennium.startYear) !== 3) {
@@ -109,7 +122,15 @@ export class VariableQuadrenniumsService {
         }
 
         try {
-            return await this.variableQuadrenniumRepository.save(variableQuadrennium);
+            const saved = await this.variableQuadrenniumRepository.save(variableQuadrennium);
+
+            await this.auditLog.logSuccess(AuditAction.VARIABLE_QUADRENNIUM_UPDATED, AuditEntityType.VARIABLE_QUADRENNIUM, saved.id, {
+                entityName: `Variable Quadrennium ${saved.startYear}-${saved.endYear}`,
+                system: SYSTEM_NAME,
+                metadata: { variableId: saved.variableId, startYear: saved.startYear, endYear: saved.endYear, value: saved.value },
+            });
+
+            return saved;
         } catch (error) {
             this.handleDBExceptions(error);
             throw error;
@@ -120,10 +141,15 @@ export class VariableQuadrenniumsService {
         const variableQuadrennium = await this.variableQuadrenniumRepository.findOne({ where: { id } });
 
         if (!variableQuadrennium) {
-            throw new NotFoundException(`Variable Quadrennium with id ${id} not found`);
+            throw new NotFoundException({ message: `Variable Quadrennium with id ${id} not found`, code: ErrorCodes.VARIABLE_QUADRENNIUM_NOT_FOUND });
         }
 
         await this.variableQuadrenniumRepository.remove(variableQuadrennium);
+
+        await this.auditLog.logSuccess(AuditAction.VARIABLE_QUADRENNIUM_DELETED, AuditEntityType.VARIABLE_QUADRENNIUM, id, {
+            entityName: `Variable Quadrennium ${variableQuadrennium.startYear}-${variableQuadrennium.endYear}`,
+            system: SYSTEM_NAME,
+        });
     }
 
     private handleDBExceptions(error: any) {

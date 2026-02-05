@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, Brackets } from "typeorm";
 import { Need } from "../entities/need.entity";
+import { ErrorCodes } from "@common/errors/error-codes";
 
 @Injectable()
 export class NeedsService {
@@ -69,7 +70,7 @@ export class NeedsService {
             relations: ["previousStudy"],
         });
 
-        if (!need) throw new NotFoundException("Necesidad no encontrada");
+        if (!need) throw new NotFoundException({ message: "Necesidad no encontrada", code: ErrorCodes.NEED_NOT_FOUND });
 
         return need;
     }

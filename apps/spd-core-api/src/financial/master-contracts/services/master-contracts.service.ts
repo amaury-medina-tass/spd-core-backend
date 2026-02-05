@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, Brackets } from "typeorm";
 import { MasterContract } from "../entities/master-contract.entity";
+import { ErrorCodes } from "@common/errors/error-codes";
 
 @Injectable()
 export class MasterContractsService {
@@ -87,7 +88,7 @@ export class MasterContractsService {
             .where("masterContract.id = :id", { id })
             .getOne();
 
-        if (!masterContract) throw new NotFoundException("Contrato marco no encontrado");
+        if (!masterContract) throw new NotFoundException({ message: "Contrato marco no encontrado", code: ErrorCodes.MASTER_CONTRACT_NOT_FOUND });
 
         return masterContract;
     }

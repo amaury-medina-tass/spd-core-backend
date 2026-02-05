@@ -5,13 +5,18 @@ import { PoaiPpa } from "../entities/poai-ppa.entity";
 import { CreatePoaiPpaDto } from "../dtos/create-poai-ppa.dto";
 import { UpdatePoaiPpaDto } from "../dtos/update-poai-ppa.dto";
 import { ProjectsService } from "../../projects/services/projects.service";
+import { AuditLogService } from "@common/cosmosdb/audit-log.service";
+import { AuditAction, AuditEntityType, buildChanges } from "@common/types/audit.types";
+import { ErrorCodes } from "@common/errors/error-codes";
+import { SYSTEM_NAME } from "../../../shared/constants";
 
 @Injectable()
 export class PoaiPpaService {
     constructor(
         @InjectRepository(PoaiPpa)
         private repo: Repository<PoaiPpa>,
-        private projectsService: ProjectsService
+        private projectsService: ProjectsService,
+        private readonly auditLog: AuditLogService,
     ) { }
 
     async create(dto: CreatePoaiPpaDto) {
@@ -23,9 +28,10 @@ export class PoaiPpaService {
         });
 
         if (existing) {
-            throw new ConflictException(
-                `Ya existe un registro POAI PPA para el proyecto ${project.code} en el año ${dto.year}`
-            );
+            throw new ConflictException({
+                message: `Ya existe un registro POAI PPA para el proyecto ${project.code} en el año ${dto.year}`,
+                code: ErrorCodes.POAI_PPA_ALREADY_EXISTS,
+            });
         }
 
         const poaiPpa = this.repo.create({
@@ -37,6 +43,12 @@ export class PoaiPpaService {
         });
 
         const saved = await this.repo.save(poaiPpa);
+
+        await this.auditLog.logSuccess(AuditAction.POAI_PPA_CREATED, AuditEntityType.POAI_PPA, saved.id, {
+            entityName: `${saved.projectCode} - ${saved.year}`,
+            system: SYSTEM_NAME,
+            metadata: { projectCode: saved.projectCode, year: saved.year, projectedPoai: saved.projectedPoai, assignedPoai: saved.assignedPoai },
+        });
 
         return {
             id: saved.id,
@@ -133,13 +145,14 @@ export class PoaiPpaService {
             .where("poaiPpa.id = :id", { id })
             .getOne();
 
-        if (!poaiPpa) throw new NotFoundException("Registro POAI PPA no encontrado");
+        if (!poaiPpa) throw new NotFoundException({ message: "Registro POAI PPA no encontrado", code: ErrorCodes.POAI_PPA_NOT_FOUND });
 
         return poaiPpa;
     }
 
     async update(id: string, dto: UpdatePoaiPpaDto) {
         const poaiPpa = await this.findOne(id);
+        const oldData = { year: poaiPpa.year, projectCode: poaiPpa.projectCode, projectedPoai: poaiPpa.projectedPoai, assignedPoai: poaiPpa.assignedPoai };
 
         // If projectId is being updated, validate it exists
         if (dto.projectId && dto.projectId !== poaiPpa.project.id) {
@@ -154,9 +167,10 @@ export class PoaiPpaService {
             });
 
             if (existing && existing.id !== id) {
-                throw new ConflictException(
-                    `Ya existe un registro POAI PPA para el proyecto ${newProject.code} en el año ${dto.year || poaiPpa.year}`
-                );
+                throw new ConflictException({
+                    message: `Ya existe un registro POAI PPA para el proyecto ${newProject.code} en el año ${dto.year || poaiPpa.year}`,
+                    code: ErrorCodes.POAI_PPA_ALREADY_EXISTS,
+                });
             }
 
             poaiPpa.project = newProject;
@@ -173,9 +187,10 @@ export class PoaiPpaService {
             });
 
             if (existing && existing.id !== id) {
-                throw new ConflictException(
-                    `Ya existe un registro POAI PPA para el proyecto ${poaiPpa.projectCode} en el año ${dto.year}`
-                );
+                throw new ConflictException({
+                    message: `Ya existe un registro POAI PPA para el proyecto ${poaiPpa.projectCode} en el año ${dto.year}`,
+                    code: ErrorCodes.POAI_PPA_ALREADY_EXISTS,
+                });
             }
         }
 
@@ -184,12 +199,26 @@ export class PoaiPpaService {
         if (dto.projectedPoai !== undefined) poaiPpa.projectedPoai = dto.projectedPoai;
         if (dto.assignedPoai !== undefined) poaiPpa.assignedPoai = dto.assignedPoai;
 
-        return this.repo.save(poaiPpa);
+        const saved = await this.repo.save(poaiPpa);
+
+        await this.auditLog.logSuccess(AuditAction.POAI_PPA_UPDATED, AuditEntityType.POAI_PPA, saved.id, {
+            entityName: `${saved.projectCode} - ${saved.year}`,
+            system: SYSTEM_NAME,
+            changes: buildChanges(oldData, saved, ["year", "projectCode", "projectedPoai", "assignedPoai"]),
+        });
+
+        return saved;
     }
 
     async remove(id: string) {
         const poaiPpa = await this.findOne(id);
         await this.repo.remove(poaiPpa);
+
+        await this.auditLog.logSuccess(AuditAction.POAI_PPA_DELETED, AuditEntityType.POAI_PPA, id, {
+            entityName: `${poaiPpa.projectCode} - ${poaiPpa.year}`,
+            system: SYSTEM_NAME,
+        });
+
         return { message: "Registro POAI PPA eliminado exitosamente" };
     }
 
@@ -203,9 +232,10 @@ export class PoaiPpaService {
             .getOne();
 
         if (!poaiPpa) {
-            throw new NotFoundException(
-                `No se encontró registro POAI PPA para el proyecto y año especificados`
-            );
+            throw new NotFoundException({
+                message: `No se encontró registro POAI PPA para el proyecto y año especificados`,
+                code: ErrorCodes.POAI_PPA_NOT_FOUND,
+            });
         }
 
         return poaiPpa;

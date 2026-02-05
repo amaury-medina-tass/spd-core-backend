@@ -1,7 +1,11 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from "@nestjs/common";
+import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from "@nestjs/common";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { PermissionsGuard } from "../common/guards/permissions.guard";
+import { RequirePermission } from "../common/decorators/require-permission.decorator";
 import { SapSyncService } from "./sap-sync.service";
 import { RequestSapSyncDto } from "./dto/request-sap-sync.dto";
 
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller("sap-sync")
 export class SapSyncController {
   constructor(private readonly sapSyncService: SapSyncService) {}
@@ -13,6 +17,7 @@ export class SapSyncController {
    */
   @Post()
   @HttpCode(HttpStatus.ACCEPTED)
+  @RequirePermission("/sap-sync", "CREATE")
   async requestSync(@Body() dto: RequestSapSyncDto) {
     const job = await this.sapSyncService.enqueueSync(dto);
 

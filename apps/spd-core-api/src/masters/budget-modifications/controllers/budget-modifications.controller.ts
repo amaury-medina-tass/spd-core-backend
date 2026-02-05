@@ -1,17 +1,23 @@
-import { Body, Controller, Get, Param, Post, Query, ParseUUIDPipe } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Query, ParseUUIDPipe, UseGuards } from "@nestjs/common";
 import { BudgetModificationsService } from "../services/budget-modifications.service";
 import { CreateBudgetModificationDto } from "../dtos/create-budget-modification.dto";
+import { JwtAuthGuard } from "../../../auth/guards/jwt-auth.guard";
+import { PermissionsGuard } from "../../../common/guards/permissions.guard";
+import { RequirePermission } from "../../../common/decorators/require-permission.decorator";
 
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller("masters/budget-modifications")
 export class BudgetModificationsController {
     constructor(private readonly budgetModificationsService: BudgetModificationsService) { }
 
     @Post()
+    @RequirePermission("/masters/activities", "BUDGET_MODIFICATION")
     create(@Body() createDto: CreateBudgetModificationDto) {
         return this.budgetModificationsService.create(createDto);
     }
 
     @Get()
+    @RequirePermission("/masters/activities", "BUDGET_MODIFICATION")
     findAll(
         @Query("page") page: number,
         @Query("limit") limit: number,
@@ -31,6 +37,7 @@ export class BudgetModificationsController {
     }
 
     @Get(":id")
+    @RequirePermission("/masters/activities", "BUDGET_MODIFICATION")
     findOne(@Param("id", ParseUUIDPipe) id: string) {
         return this.budgetModificationsService.findOne(id);
     }

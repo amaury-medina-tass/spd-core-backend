@@ -4,19 +4,24 @@ import { Repository, Brackets } from "typeorm";
 import { Project } from "../entities/project.entity";
 import { CreateProjectDto } from "../dtos/create-project.dto";
 import { DependenciesService } from "../../dependencies/services/dependencies.service";
+import { AuditLogService } from "@common/cosmosdb/audit-log.service";
+import { AuditAction, AuditEntityType } from "@common/types/audit.types";
+import { ErrorCodes } from "@common/errors/error-codes";
+import { SYSTEM_NAME } from "../../../shared/constants";
 
 @Injectable()
 export class ProjectsService {
     constructor(
         @InjectRepository(Project)
         private repo: Repository<Project>,
-        private dependenciesService: DependenciesService
+        private dependenciesService: DependenciesService,
+        private readonly auditLog: AuditLogService,
     ) { }
 
     async create(dto: CreateProjectDto) {
         const dependency = await this.dependenciesService.findOne(dto.dependencyId);
         if (!dependency) {
-            throw new NotFoundException(`Dependencia con ID ${dto.dependencyId} no encontrada`);
+            throw new NotFoundException({ message: `Dependencia con ID ${dto.dependencyId} no encontrada`, code: ErrorCodes.DEPENDENCY_NOT_FOUND });
         }
 
         const project = this.repo.create({
@@ -30,7 +35,15 @@ export class ProjectsService {
             dependency: dependency,
         });
 
-        return this.repo.save(project);
+        const saved = await this.repo.save(project);
+
+        await this.auditLog.logSuccess(AuditAction.PROJECT_CREATED, AuditEntityType.PROJECT, saved.id, {
+            entityName: `${saved.code} - ${saved.name}`,
+            system: SYSTEM_NAME,
+            metadata: { code: saved.code, name: saved.name, dependencyId: dto.dependencyId },
+        });
+
+        return saved;
     }
 
     async findAllPaginated(
@@ -111,7 +124,7 @@ export class ProjectsService {
             .where("project.id = :id", { id })
             .getOne();
 
-        if (!project) throw new NotFoundException("Proyecto no encontrado");
+        if (!project) throw new NotFoundException({ message: "Proyecto no encontrado", code: ErrorCodes.PROJECT_NOT_FOUND });
 
         return project;
     }

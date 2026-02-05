@@ -20,6 +20,10 @@ import { CreateFormulaDto } from '../dtos/create-formula.dto';
 import { UpdateFormulaDto } from '../dtos/update-formula.dto';
 import { forwardRef, Inject } from '@nestjs/common';
 import { VariableAdvancesService } from '../../../sub/variable-advances/services/variable-advances.service';
+import { AuditLogService } from '@common/cosmosdb/audit-log.service';
+import { AuditAction, AuditEntityType } from '@common/types/audit.types';
+import { ErrorCodes } from '@common/errors/error-codes';
+import { SYSTEM_NAME } from '../../../shared/constants';
 
 @Injectable()
 export class FormulasService {
@@ -40,6 +44,7 @@ export class FormulasService {
     private readonly formulaRepo: Repository<Formula>,
     @Inject(forwardRef(() => VariableAdvancesService))
     private readonly variableAdvancesService: VariableAdvancesService,
+    private readonly auditLog: AuditLogService,
   ) { }
 
   async create(createFormulaDto: CreateFormulaDto) {
@@ -49,13 +54,20 @@ export class FormulasService {
       (createFormulaDto.indicativeIndicatorId &&
         createFormulaDto.actionIndicatorId)
     ) {
-      throw new BadRequestException(
-        'Must provide exactly one of indicativeIndicatorId or actionIndicatorId',
-      );
+      throw new BadRequestException({
+        message: 'Must provide exactly one of indicativeIndicatorId or actionIndicatorId',
+        code: ErrorCodes.FORMULA_INVALID_INDICATOR,
+      });
     }
 
     const formula = this.formulaRepo.create(createFormulaDto);
     const saved = await this.formulaRepo.save(formula);
+
+    await this.auditLog.logSuccess(AuditAction.FORMULA_CREATED, AuditEntityType.FORMULA, saved.id, {
+      entityName: `Formula ${saved.id}`,
+      system: SYSTEM_NAME,
+      metadata: { indicativeIndicatorId: saved.indicativeIndicatorId, actionIndicatorId: saved.actionIndicatorId },
+    });
 
     // Trigger recalculation
     // We don't await this to keep response fast? Or consistent? 
@@ -73,10 +85,16 @@ export class FormulasService {
     });
 
     if (!formula) {
-      throw new NotFoundException(`Formula with ID ${id} not found`);
+      throw new NotFoundException({ message: `Formula with ID ${id} not found`, code: ErrorCodes.FORMULA_NOT_FOUND });
     }
 
     const saved = await this.formulaRepo.save(formula);
+
+    await this.auditLog.logSuccess(AuditAction.FORMULA_UPDATED, AuditEntityType.FORMULA, saved.id, {
+      entityName: `Formula ${saved.id}`,
+      system: SYSTEM_NAME,
+    });
+
     await this.variableAdvancesService.recalculateForFormula(saved);
     return saved;
   }
@@ -104,9 +122,10 @@ export class FormulasService {
     });
 
     if (!indicator) {
-      throw new NotFoundException(
-        `Action Plan Indicator with ID ${indicatorId} not found`,
-      );
+      throw new NotFoundException({
+        message: `Action Plan Indicator with ID ${indicatorId} not found`,
+        code: ErrorCodes.ACTION_INDICATOR_NOT_FOUND,
+      });
     }
 
     // Fetch goals and quadrenniums manually if they are separate entities and no relation is set up in entity
@@ -186,9 +205,10 @@ export class FormulasService {
     });
 
     if (!indicator) {
-      throw new NotFoundException(
-        `Indicative Plan Indicator with ID ${indicatorId} not found`,
-      );
+      throw new NotFoundException({
+        message: `Indicative Plan Indicator with ID ${indicatorId} not found`,
+        code: ErrorCodes.INDICATIVE_INDICATOR_NOT_FOUND,
+      });
     }
 
     const [indicatorGoals, indicatorQuadrenniums] = await Promise.all([

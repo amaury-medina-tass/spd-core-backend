@@ -6,6 +6,10 @@ import { MgaDetailedRelation } from "../entities/mga-detailed-relation.entity";
 import { CreateMgaActivityDto } from "../dtos/create-mga-activity.dto";
 import { UpdateMgaActivityDto } from "../dtos/update-mga-activity.dto";
 import { DetailedActivity } from "../../detailed-activities/entities/detailed-activity.entity";
+import { AuditLogService } from "@common/cosmosdb/audit-log.service";
+import { AuditAction, AuditEntityType, buildChanges } from "@common/types/audit.types";
+import { ErrorCodes } from "@common/errors/error-codes";
+import { SYSTEM_NAME } from "../../../shared/constants";
 
 @Injectable()
 export class MgaActivitiesService {
@@ -18,6 +22,7 @@ export class MgaActivitiesService {
         private readonly mgaDetailedRelationRepository: Repository<MgaDetailedRelation>,
         @InjectRepository(DetailedActivity)
         private readonly detailedActivityRepository: Repository<DetailedActivity>,
+        private readonly auditLog: AuditLogService,
     ) { }
 
     async create(createDto: CreateMgaActivityDto): Promise<MgaActivity> {
@@ -35,6 +40,12 @@ export class MgaActivitiesService {
                 );
                 await this.mgaDetailedRelationRepository.save(relations);
             }
+
+            await this.auditLog.logSuccess(AuditAction.MGA_ACTIVITY_CREATED, AuditEntityType.MGA_ACTIVITY, savedActivity.id, {
+                entityName: `${savedActivity.code} - ${savedActivity.name}`,
+                system: SYSTEM_NAME,
+                metadata: { code: savedActivity.code, name: savedActivity.name },
+            });
 
             return savedActivity;
         } catch (error) {
@@ -219,7 +230,7 @@ export class MgaActivitiesService {
             .getOne();
 
         if (!mgaActivity) {
-            throw new NotFoundException(`MGA Activity with id ${id} not found`);
+            throw new NotFoundException({ message: `MGA Activity with id ${id} not found`, code: ErrorCodes.MGA_ACTIVITY_NOT_FOUND });
         }
 
         // Calcular valor y saldo totales
@@ -331,18 +342,29 @@ export class MgaActivitiesService {
     }
 
     async update(id: string, updateDto: UpdateMgaActivityDto) {
+        const oldMga = await this.findOne(id);
+        const oldData = { code: oldMga.code, name: oldMga.name, observations: oldMga.observations };
+
         const mgaActivity = await this.mgaActivityRepository.preload({
             id: id,
             ...updateDto,
         });
 
         if (!mgaActivity) {
-            throw new NotFoundException(`MGA Activity with id ${id} not found`);
+            throw new NotFoundException({ message: `MGA Activity with id ${id} not found`, code: ErrorCodes.MGA_ACTIVITY_NOT_FOUND });
         }
 
         try {
             await this.mgaActivityRepository.save(mgaActivity);
-            return this.findOne(id);
+            const result = await this.findOne(id);
+
+            await this.auditLog.logSuccess(AuditAction.MGA_ACTIVITY_UPDATED, AuditEntityType.MGA_ACTIVITY, id, {
+                entityName: `${mgaActivity.code} - ${mgaActivity.name}`,
+                system: SYSTEM_NAME,
+                changes: buildChanges(oldData, mgaActivity, ["code", "name", "observations"]),
+            });
+
+            return result;
         } catch (error) {
             this.handleDBExceptions(error);
             throw error;
@@ -468,7 +490,7 @@ export class MgaActivitiesService {
 
     private handleDBExceptions(error: any) {
         if (error.code === "23505") {
-            throw new BadRequestException(error.detail);
+            throw new BadRequestException({ message: error.detail, code: ErrorCodes.DUPLICATE_ENTRY });
         }
         this.logger.error(error);
     }

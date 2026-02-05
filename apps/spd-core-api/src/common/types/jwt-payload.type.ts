@@ -1,10 +1,22 @@
+export type ActionPermission = {
+  name: string;
+  allowed: boolean;
+};
+
+export type ModulePermission = {
+  name: string;
+  actions: Record<string, ActionPermission>;
+};
+
+export type PermissionsMap = Record<string, ModulePermission>;
+
 export type JwtPayload = {
   sub: string;             // userId
   email?: string;
 
-  system?: string;         // "SPD" / "MUJERES"
+  system?: string;         // "SPD" / "SICGEM"
   roles?: string[];        // opcional
-  permissions?: string[];  // ej: ["masters.activities.read", "financiero.cdp.create"]
+  permissions?: PermissionsMap;
 
   iat?: number;
   exp?: number;

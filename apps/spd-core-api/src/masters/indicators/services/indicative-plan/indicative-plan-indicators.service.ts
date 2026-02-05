@@ -7,6 +7,10 @@ import { UnitMeasure } from "../../entities/common/unit-measure.entity";
 import { IndicatorDirection } from "../../entities/common/indicator-direction.entity";
 import { CreateIndicativePlanIndicatorDto } from "../../dtos/indicative-plan/create-indicative-plan-indicator.dto";
 import { UpdateIndicativePlanIndicatorDto } from "../../dtos/indicative-plan/update-indicative-plan-indicator.dto";
+import { AuditLogService } from "@common/cosmosdb/audit-log.service";
+import { AuditAction, AuditEntityType, buildChanges } from "@common/types/audit.types";
+import { ErrorCodes } from "@common/errors/error-codes";
+import { SYSTEM_NAME } from "../../../../shared/constants";
 
 @Injectable()
 export class IndicativePlanIndicatorsService {
@@ -21,6 +25,7 @@ export class IndicativePlanIndicatorsService {
         private readonly unitMeasureRepository: Repository<UnitMeasure>,
         @InjectRepository(IndicatorDirection)
         private readonly indicatorDirectionRepository: Repository<IndicatorDirection>,
+        private readonly auditLog: AuditLogService,
     ) { }
 
     async create(createDto: CreateIndicativePlanIndicatorDto): Promise<IndicativePlanIndicator> {
@@ -28,11 +33,19 @@ export class IndicativePlanIndicatorsService {
             if (createDto.code) {
                 const existing = await this.indicatorRepository.findOne({ where: { code: createDto.code } });
                 if (existing) {
-                    throw new BadRequestException(`El código ${createDto.code} ya existe para otro indicador.`);
+                    throw new BadRequestException({ message: `El código ${createDto.code} ya existe para otro indicador.`, code: ErrorCodes.INDICATIVE_INDICATOR_ALREADY_EXISTS });
                 }
             }
             const indicator = this.indicatorRepository.create(createDto);
-            return await this.indicatorRepository.save(indicator);
+            const saved = await this.indicatorRepository.save(indicator);
+
+            await this.auditLog.logSuccess(AuditAction.INDICATIVE_INDICATOR_CREATED, AuditEntityType.INDICATIVE_INDICATOR, saved.id, {
+                entityName: `${saved.code} - ${saved.name}`,
+                system: SYSTEM_NAME,
+                metadata: { code: saved.code, name: saved.name },
+            });
+
+            return saved;
         } catch (error) {
             this.handleDBExceptions(error);
             throw error;
@@ -110,22 +123,32 @@ export class IndicativePlanIndicatorsService {
             relations: ["indicatorType", "unitMeasure", "direction"],
         });
         if (!indicator) {
-            throw new NotFoundException(`Indicator with ID ${id} not found`);
+            throw new NotFoundException({ message: `Indicator with ID ${id} not found`, code: ErrorCodes.INDICATIVE_INDICATOR_NOT_FOUND });
         }
         return indicator;
     }
 
     async update(id: string, updateDto: UpdateIndicativePlanIndicatorDto): Promise<IndicativePlanIndicator> {
         const indicator = await this.findOne(id);
+        const oldData = { code: indicator.code, name: indicator.name };
+
         if (updateDto.code) {
             const existing = await this.indicatorRepository.findOne({ where: { code: updateDto.code } });
             if (existing && existing.id !== id) {
-                throw new BadRequestException(`El código ${updateDto.code} ya existe para otro indicador.`);
+                throw new BadRequestException({ message: `El código ${updateDto.code} ya existe para otro indicador.`, code: ErrorCodes.INDICATIVE_INDICATOR_ALREADY_EXISTS });
             }
         }
         Object.assign(indicator, updateDto);
         try {
-            return await this.indicatorRepository.save(indicator);
+            const saved = await this.indicatorRepository.save(indicator);
+
+            await this.auditLog.logSuccess(AuditAction.INDICATIVE_INDICATOR_UPDATED, AuditEntityType.INDICATIVE_INDICATOR, saved.id, {
+                entityName: `${saved.code} - ${saved.name}`,
+                system: SYSTEM_NAME,
+                changes: buildChanges(oldData, saved, ["code", "name"]),
+            });
+
+            return saved;
         } catch (error) {
             this.handleDBExceptions(error);
             throw error;
@@ -135,6 +158,11 @@ export class IndicativePlanIndicatorsService {
     async remove(id: string): Promise<void> {
         const indicator = await this.findOne(id);
         await this.indicatorRepository.remove(indicator);
+
+        await this.auditLog.logSuccess(AuditAction.INDICATIVE_INDICATOR_DELETED, AuditEntityType.INDICATIVE_INDICATOR, id, {
+            entityName: `${indicator.code} - ${indicator.name}`,
+            system: SYSTEM_NAME,
+        });
     }
 
     async getCatalogs() {
@@ -153,7 +181,7 @@ export class IndicativePlanIndicatorsService {
 
     private handleDBExceptions(error: any) {
         if (error.code === "23505") {
-            throw new BadRequestException(error.detail);
+            throw new BadRequestException({ message: error.detail, code: ErrorCodes.DUPLICATE_ENTRY });
         }
         this.logger.error(error);
     }

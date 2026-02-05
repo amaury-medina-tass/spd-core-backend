@@ -13,6 +13,7 @@ import { FinancialModule } from "./financial/financial.module";
 import { SapSyncModule } from "./sap-sync/sap-sync.module";
 import { SubModule } from "./sub/sub.module";
 import { RedisModule } from "@common/redis/redis.module";
+import { CosmosDbModule } from "@common/cosmosdb/cosmosdb.module";
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { RedisModule } from "@common/redis/redis.module";
     }),
     ScheduleModule.forRoot(),
     DatabaseModule,
+    CosmosDbModule.forRootAsync(),
     OutboxModule,
 
     MastersModule,

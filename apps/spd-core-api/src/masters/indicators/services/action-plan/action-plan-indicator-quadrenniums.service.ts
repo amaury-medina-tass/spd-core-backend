@@ -1,6 +1,10 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Brackets, Repository } from "typeorm";
+import { AuditLogService } from "@common/cosmosdb/audit-log.service";
+import { AuditAction, AuditEntityType } from "@common/types/audit.types";
+import { ErrorCodes } from "@common/errors/error-codes";
+import { SYSTEM_NAME } from "../../../../shared/constants";
 import { ActionPlanIndicatorQuadrennium } from "../../entities/action-plan/action-plan-indicator-quadrennium.entity";
 import { ActionPlanIndicator } from "../../entities/action-plan/action-plan-indicator.entity";
 import { CreateActionPlanIndicatorQuadrenniumDto } from "../../dtos/action-plan/create-action-plan-indicator-quadrennium.dto";
@@ -15,6 +19,7 @@ export class ActionPlanIndicatorQuadrenniumsService {
         private readonly quadrenniumRepository: Repository<ActionPlanIndicatorQuadrennium>,
         @InjectRepository(ActionPlanIndicator)
         private readonly indicatorRepository: Repository<ActionPlanIndicator>,
+        private readonly auditLog: AuditLogService,
     ) { }
 
     async create(createDto: CreateActionPlanIndicatorQuadrenniumDto): Promise<ActionPlanIndicatorQuadrennium> {
@@ -22,12 +27,20 @@ export class ActionPlanIndicatorQuadrenniumsService {
 
         const indicator = await this.indicatorRepository.findOne({ where: { id: indicatorId } });
         if (!indicator) {
-            throw new NotFoundException(`Indicador con ID ${indicatorId} no encontrado`);
+            throw new NotFoundException({ message: `Indicador con ID ${indicatorId} no encontrado`, code: ErrorCodes.ACTION_INDICATOR_NOT_FOUND });
         }
 
         try {
             const quadrennium = this.quadrenniumRepository.create(createDto);
-            return await this.quadrenniumRepository.save(quadrennium);
+            const saved = await this.quadrenniumRepository.save(quadrennium);
+
+            await this.auditLog.logSuccess(AuditAction.ACTION_INDICATOR_QUADRENNIUM_CREATED, AuditEntityType.ACTION_INDICATOR_QUADRENNIUM, saved.id, {
+                entityName: `Action Quadrennium ${saved.startYear}-${saved.endYear}`,
+                system: SYSTEM_NAME,
+                metadata: { indicatorId, startYear: saved.startYear, endYear: saved.endYear, value: saved.value },
+            });
+
+            return saved;
         } catch (error) {
             this.handleDBExceptions(error);
             throw error;
@@ -104,7 +117,7 @@ export class ActionPlanIndicatorQuadrenniumsService {
     async findOne(id: string): Promise<ActionPlanIndicatorQuadrennium> {
         const quadrennium = await this.quadrenniumRepository.findOne({ where: { id } });
         if (!quadrennium) {
-            throw new NotFoundException(`Quadrennium with ID ${id} not found`);
+            throw new NotFoundException({ message: `Quadrennium with ID ${id} not found`, code: ErrorCodes.ACTION_INDICATOR_QUADRENNIUM_NOT_FOUND });
         }
         return quadrennium;
     }
@@ -113,7 +126,15 @@ export class ActionPlanIndicatorQuadrenniumsService {
         const quadrennium = await this.findOne(id);
         Object.assign(quadrennium, updateDto);
         try {
-            return await this.quadrenniumRepository.save(quadrennium);
+            const saved = await this.quadrenniumRepository.save(quadrennium);
+
+            await this.auditLog.logSuccess(AuditAction.ACTION_INDICATOR_QUADRENNIUM_UPDATED, AuditEntityType.ACTION_INDICATOR_QUADRENNIUM, saved.id, {
+                entityName: `Action Quadrennium ${saved.startYear}-${saved.endYear}`,
+                system: SYSTEM_NAME,
+                metadata: { indicatorId: saved.indicatorId, startYear: saved.startYear, endYear: saved.endYear, value: saved.value },
+            });
+
+            return saved;
         } catch (error) {
             this.handleDBExceptions(error);
             throw error;
@@ -123,6 +144,11 @@ export class ActionPlanIndicatorQuadrenniumsService {
     async remove(id: string): Promise<void> {
         const quadrennium = await this.findOne(id);
         await this.quadrenniumRepository.remove(quadrennium);
+
+        await this.auditLog.logSuccess(AuditAction.ACTION_INDICATOR_QUADRENNIUM_DELETED, AuditEntityType.ACTION_INDICATOR_QUADRENNIUM, id, {
+            entityName: `Action Quadrennium ${quadrennium.startYear}-${quadrennium.endYear}`,
+            system: SYSTEM_NAME,
+        });
     }
 
     private handleDBExceptions(error: any) {

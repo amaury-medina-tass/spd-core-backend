@@ -1,14 +1,17 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../../../auth/guards/jwt-auth.guard";
+import { PermissionsGuard } from "../../../common/guards/permissions.guard";
+import { RequirePermission } from "../../../common/decorators/require-permission.decorator";
 import { ResponseMessage } from "../../../common/decorators/response-message.decorator";
 import { CdpPositionsService } from "../services/cdp-positions.service";
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller("financial/cdps")
 export class CdpPositionsController {
     constructor(private readonly service: CdpPositionsService) { }
 
     @Get(":cdpId/positions")
+    @RequirePermission("/financial/cdps", "READ")
     @ResponseMessage("Listado de posiciones del CDP")
     findByCdpId(
         @Param("cdpId") cdpId: string,
@@ -18,6 +21,7 @@ export class CdpPositionsController {
     }
 
     @Get("positions/table")
+    @RequirePermission("/financial/cdps", "READ")
     @ResponseMessage("Tabla de posiciones de CDPs")
     findForTable(
         @Query("page") page: number,
@@ -36,6 +40,7 @@ export class CdpPositionsController {
     }
 
     @Get("positions/:id")
+    @RequirePermission("/financial/cdps", "READ")
     @ResponseMessage("Detalle de la posición CDP")
     findOne(
         @Param("id") id: string,
@@ -52,6 +57,7 @@ export class CdpPositionsController {
     }
 
     @Patch("positions/:id/observations")
+    @RequirePermission("/financial/cdps", "UPDATE")
     @ResponseMessage("Observaciones actualizadas exitosamente")
     updateObservations(
         @Param("id") id: string,
@@ -62,6 +68,7 @@ export class CdpPositionsController {
 
     // GET /financial/cdps/positions/:positionId/detailed-activities
     @Get("positions/:positionId/detailed-activities")
+    @RequirePermission("/financial/cdps", "ASSIGN_DETAILED_ACTIVITY")
     @ResponseMessage("Actividades detalladas de la posición CDP")
     getDetailedActivitiesForPosition(
         @Param("positionId") positionId: string,
@@ -81,6 +88,7 @@ export class CdpPositionsController {
 
     // POST /financial/cdps/positions/:positionId/detailed-activities
     @Post("positions/:positionId/detailed-activities")
+    @RequirePermission("/financial/cdps", "ASSIGN_DETAILED_ACTIVITY")
     @ResponseMessage("Actividad asociada exitosamente")
     associateActivity(
         @Param("positionId") positionId: string,
@@ -91,6 +99,7 @@ export class CdpPositionsController {
 
     // DELETE /financial/cdps/positions/:positionId/detailed-activities/:detailedActivityId
     @Delete("positions/:positionId/detailed-activities/:detailedActivityId")
+    @RequirePermission("/financial/cdps", "ASSIGN_DETAILED_ACTIVITY")
     @ResponseMessage("Actividad desasociada exitosamente")
     disassociateActivity(
         @Param("positionId") positionId: string,

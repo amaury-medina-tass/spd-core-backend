@@ -1,6 +1,10 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, Brackets } from "typeorm";
+import { AuditLogService } from "@common/cosmosdb/audit-log.service";
+import { AuditAction, AuditEntityType } from "@common/types/audit.types";
+import { ErrorCodes } from "@common/errors/error-codes";
+import { SYSTEM_NAME } from "../../../../shared/constants";
 import { ActionPlanIndicatorGoal } from "../../entities/action-plan/action-plan-indicator-goal.entity";
 import { ActionPlanIndicator } from "../../entities/action-plan/action-plan-indicator.entity";
 import { CreateActionPlanIndicatorGoalDto } from "../../dtos/action-plan/create-action-plan-indicator-goal.dto";
@@ -16,6 +20,7 @@ export class ActionPlanIndicatorGoalsService {
         private readonly goalRepository: Repository<ActionPlanIndicatorGoal>,
         @InjectRepository(ActionPlanIndicator)
         private readonly indicatorRepository: Repository<ActionPlanIndicator>,
+        private readonly auditLog: AuditLogService,
     ) { }
 
     async create(createDto: CreateActionPlanIndicatorGoalDto): Promise<ActionPlanIndicatorGoal> {
@@ -23,12 +28,20 @@ export class ActionPlanIndicatorGoalsService {
 
         const indicator = await this.indicatorRepository.findOne({ where: { id: indicatorId } });
         if (!indicator) {
-            throw new NotFoundException(`Indicador con ID ${indicatorId} no encontrado`);
+            throw new NotFoundException({ message: `Indicador con ID ${indicatorId} no encontrado`, code: ErrorCodes.ACTION_INDICATOR_NOT_FOUND });
         }
 
         try {
             const goal = this.goalRepository.create(createDto);
-            return await this.goalRepository.save(goal);
+            const saved = await this.goalRepository.save(goal);
+
+            await this.auditLog.logSuccess(AuditAction.ACTION_INDICATOR_GOAL_CREATED, AuditEntityType.ACTION_INDICATOR_GOAL, saved.id, {
+                entityName: `Action Goal - Year ${saved.year}`,
+                system: SYSTEM_NAME,
+                metadata: { indicatorId, year: saved.year, value: saved.value },
+            });
+
+            return saved;
         } catch (error) {
             this.handleDBExceptions(error);
             throw error;
@@ -109,7 +122,7 @@ export class ActionPlanIndicatorGoalsService {
     async findOne(id: string): Promise<ActionPlanIndicatorGoal> {
         const goal = await this.goalRepository.findOne({ where: { id } });
         if (!goal) {
-            throw new NotFoundException(`Goal with ID ${id} not found`);
+            throw new NotFoundException({ message: `Goal with ID ${id} not found`, code: ErrorCodes.ACTION_INDICATOR_GOAL_NOT_FOUND });
         }
         return goal;
     }
@@ -118,7 +131,15 @@ export class ActionPlanIndicatorGoalsService {
         const goal = await this.findOne(id);
         Object.assign(goal, updateDto);
         try {
-            return await this.goalRepository.save(goal);
+            const saved = await this.goalRepository.save(goal);
+
+            await this.auditLog.logSuccess(AuditAction.ACTION_INDICATOR_GOAL_UPDATED, AuditEntityType.ACTION_INDICATOR_GOAL, saved.id, {
+                entityName: `Action Goal - Year ${saved.year}`,
+                system: SYSTEM_NAME,
+                metadata: { indicatorId: saved.indicatorId, year: saved.year, value: saved.value },
+            });
+
+            return saved;
         } catch (error) {
             this.handleDBExceptions(error);
             throw error;
@@ -128,6 +149,11 @@ export class ActionPlanIndicatorGoalsService {
     async remove(id: string): Promise<void> {
         const goal = await this.findOne(id);
         await this.goalRepository.remove(goal);
+
+        await this.auditLog.logSuccess(AuditAction.ACTION_INDICATOR_GOAL_DELETED, AuditEntityType.ACTION_INDICATOR_GOAL, id, {
+            entityName: `Action Goal - Year ${goal.year}`,
+            system: SYSTEM_NAME,
+        });
     }
 
     private handleDBExceptions(error: any) {

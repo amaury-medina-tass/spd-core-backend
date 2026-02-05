@@ -1,11 +1,16 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Query } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from "@nestjs/common";
 import { ProjectActionIndicatorRelationsService } from "../../services/action-plan/project-action-indicator-relations.service";
+import { JwtAuthGuard } from "../../../../auth/guards/jwt-auth.guard";
+import { PermissionsGuard } from "../../../../common/guards/permissions.guard";
+import { RequirePermission } from "../../../../common/decorators/require-permission.decorator";
 
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller("masters/action-plan-indicators")
 export class ProjectActionIndicatorRelationsController {
     constructor(private readonly relationsService: ProjectActionIndicatorRelationsService) { }
 
     @Post(":id/projects")
+    @RequirePermission("/masters/indicators", "CREATE")
     associate(
         @Param("id", ParseUUIDPipe) id: string,
         @Body("projectId", ParseUUIDPipe) projectId: string
@@ -14,6 +19,7 @@ export class ProjectActionIndicatorRelationsController {
     }
 
     @Delete(":id/projects/:projectId")
+    @RequirePermission("/masters/indicators", "DELETE")
     disassociate(
         @Param("id", ParseUUIDPipe) id: string,
         @Param("projectId", ParseUUIDPipe) projectId: string
@@ -22,6 +28,7 @@ export class ProjectActionIndicatorRelationsController {
     }
 
     @Get(":id/projects")
+    @RequirePermission("/masters/indicators", "READ")
     find(
         @Param("id", ParseUUIDPipe) id: string,
         @Query("type") type: "associated" | "available" | "all" = "all",

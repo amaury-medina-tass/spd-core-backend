@@ -4,6 +4,10 @@ import { Repository, Brackets } from "typeorm";
 import { DetailedActivity } from "../entities/detailed-activity.entity";
 import { CreateDetailedActivityDto } from "../dtos/create-detailed-activity.dto";
 import { UpdateDetailedActivityDto } from "../dtos/update-detailed-activity.dto";
+import { AuditLogService } from "@common/cosmosdb/audit-log.service";
+import { AuditAction, AuditEntityType, buildChanges } from "@common/types/audit.types";
+import { ErrorCodes } from "@common/errors/error-codes";
+import { SYSTEM_NAME } from "../../../shared/constants";
 
 @Injectable()
 export class DetailedActivitiesService {
@@ -12,12 +16,21 @@ export class DetailedActivitiesService {
     constructor(
         @InjectRepository(DetailedActivity)
         private readonly detailedActivityRepository: Repository<DetailedActivity>,
+        private readonly auditLog: AuditLogService,
     ) { }
 
     async create(createDto: CreateDetailedActivityDto): Promise<DetailedActivity> {
         try {
             const detailedActivity = this.detailedActivityRepository.create(createDto);
-            return await this.detailedActivityRepository.save(detailedActivity);
+            const saved = await this.detailedActivityRepository.save(detailedActivity);
+
+            await this.auditLog.logSuccess(AuditAction.DETAILED_ACTIVITY_CREATED, AuditEntityType.DETAILED_ACTIVITY, saved.id, {
+                entityName: `${saved.code} - ${saved.name}`,
+                system: SYSTEM_NAME,
+                metadata: { code: saved.code, name: saved.name },
+            });
+
+            return saved;
         } catch (error) {
             this.handleDBExceptions(error);
             throw error;
@@ -106,24 +119,35 @@ export class DetailedActivitiesService {
         });
 
         if (!detailedActivity) {
-            throw new NotFoundException(`Detailed Activity with id ${id} not found`);
+            throw new NotFoundException({ message: `Detailed Activity with id ${id} not found`, code: ErrorCodes.DETAILED_ACTIVITY_NOT_FOUND });
         }
 
         return detailedActivity;
     }
 
     async update(id: string, updateDto: UpdateDetailedActivityDto): Promise<DetailedActivity> {
+        const oldActivity = await this.findOne(id);
+        const oldData = { code: oldActivity.code, name: oldActivity.name, observations: oldActivity.observations };
+
         const detailedActivity = await this.detailedActivityRepository.preload({
             id: id,
             ...updateDto,
         });
 
         if (!detailedActivity) {
-            throw new NotFoundException(`Detailed Activity with id ${id} not found`);
+            throw new NotFoundException({ message: `Detailed Activity with id ${id} not found`, code: ErrorCodes.DETAILED_ACTIVITY_NOT_FOUND });
         }
 
         try {
-            return await this.detailedActivityRepository.save(detailedActivity);
+            const saved = await this.detailedActivityRepository.save(detailedActivity);
+
+            await this.auditLog.logSuccess(AuditAction.DETAILED_ACTIVITY_UPDATED, AuditEntityType.DETAILED_ACTIVITY, saved.id, {
+                entityName: `${saved.code} - ${saved.name}`,
+                system: SYSTEM_NAME,
+                changes: buildChanges(oldData, saved, ["code", "name", "observations"]),
+            });
+
+            return saved;
         } catch (error) {
             this.handleDBExceptions(error);
             throw error;
@@ -133,11 +157,16 @@ export class DetailedActivitiesService {
     async remove(id: string): Promise<void> {
         const detailedActivity = await this.findOne(id);
         await this.detailedActivityRepository.remove(detailedActivity);
+
+        await this.auditLog.logSuccess(AuditAction.DETAILED_ACTIVITY_DELETED, AuditEntityType.DETAILED_ACTIVITY, id, {
+            entityName: `${detailedActivity.code} - ${detailedActivity.name}`,
+            system: SYSTEM_NAME,
+        });
     }
 
     private handleDBExceptions(error: any) {
         if (error.code === "23505") {
-            throw new BadRequestException(error.detail);
+            throw new BadRequestException({ message: error.detail, code: ErrorCodes.DUPLICATE_ENTRY });
         }
         this.logger.error(error);
     }

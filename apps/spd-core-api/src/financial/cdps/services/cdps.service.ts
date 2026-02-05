@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, Brackets } from "typeorm";
 import { Cdp } from "../entities/cdp.entity";
+import { ErrorCodes } from "@common/errors/error-codes";
 
 @Injectable()
 export class CdpsService {
@@ -91,7 +92,7 @@ export class CdpsService {
             .where("cdp.id = :id", { id })
             .getOne();
 
-        if (!cdp) throw new NotFoundException("CDP no encontrado");
+        if (!cdp) throw new NotFoundException({ message: "CDP no encontrado", code: ErrorCodes.CDP_NOT_FOUND });
 
         return cdp;
     }

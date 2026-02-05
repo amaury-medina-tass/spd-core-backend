@@ -4,6 +4,10 @@ import { DataSource, Repository, Brackets } from "typeorm";
 import { BudgetModification, ModificationType } from "../entities/budget-modification.entity";
 import { CreateBudgetModificationDto } from "../dtos/create-budget-modification.dto";
 import { DetailedActivity } from "../../detailed-activities/entities/detailed-activity.entity";
+import { AuditLogService } from "@common/cosmosdb/audit-log.service";
+import { AuditAction, AuditEntityType } from "@common/types/audit.types";
+import { ErrorCodes } from "@common/errors/error-codes";
+import { SYSTEM_NAME } from "../../../shared/constants";
 
 @Injectable()
 export class BudgetModificationsService {
@@ -12,7 +16,8 @@ export class BudgetModificationsService {
     constructor(
         @InjectRepository(BudgetModification)
         private readonly budgetModificationRepository: Repository<BudgetModification>,
-        private dataSource: DataSource
+        private dataSource: DataSource,
+        private readonly auditLog: AuditLogService,
     ) { }
 
     async create(createDto: CreateBudgetModificationDto): Promise<BudgetModification> {
@@ -27,14 +32,14 @@ export class BudgetModificationsService {
             });
 
             if (!detailedActivity) {
-                throw new NotFoundException(`Detailed Activity con id ${createDto.detailedActivityId} no encontrada`);
+                throw new NotFoundException({ message: `Detailed Activity con id ${createDto.detailedActivityId} no encontrada`, code: ErrorCodes.DETAILED_ACTIVITY_NOT_FOUND });
             }
 
             let savedModification: BudgetModification;
 
             if (createDto.modificationType === ModificationType.ADDITION) {
                 if (!createDto.value) {
-                    throw new BadRequestException("El valor es requerido para ADICIONES");
+                    throw new BadRequestException({ message: "El valor es requerido para ADICIONES", code: ErrorCodes.BUDGET_MODIFICATION_INVALID_VALUE });
                 }
 
                 const previousBalance = Number(detailedActivity.balance);
@@ -56,10 +61,10 @@ export class BudgetModificationsService {
 
             } else if (createDto.modificationType === ModificationType.REDUCTION) {
                 if (!createDto.value) {
-                    throw new BadRequestException("El valor es requerido para REDUCCIONES");
+                    throw new BadRequestException({ message: "El valor es requerido para REDUCCIONES", code: ErrorCodes.BUDGET_MODIFICATION_INVALID_VALUE });
                 }
                 if (Number(detailedActivity.balance) < createDto.value) {
-                    throw new BadRequestException("No se puede reducir un valor mayor al saldo disponible.");
+                    throw new BadRequestException({ message: "No se puede reducir un valor mayor al saldo disponible.", code: ErrorCodes.BUDGET_MODIFICATION_INSUFFICIENT_BALANCE });
                 }
 
 
@@ -85,11 +90,11 @@ export class BudgetModificationsService {
             ) {
 
                 if (!createDto.newRubricId) {
-                    throw new BadRequestException("newRubricId es requerido para TRASLADOS o RECLASIFICACIONES");
+                    throw new BadRequestException({ message: "newRubricId es requerido para TRASLADOS o RECLASIFICACIONES", code: ErrorCodes.BUDGET_MODIFICATION_INVALID_VALUE });
                 }
 
                 if (createDto.newRubricId === detailedActivity.rubricId) {
-                    throw new BadRequestException("El nuevo rubro no puede ser igual al actual.");
+                    throw new BadRequestException({ message: "El nuevo rubro no puede ser igual al actual.", code: ErrorCodes.BUDGET_MODIFICATION_SAME_RUBRIC });
                 }
 
                 const previousBalance = Number(detailedActivity.balance);
@@ -109,11 +114,21 @@ export class BudgetModificationsService {
                 savedModification = await queryRunner.manager.save(modification);
             } else {
                 // Should not happen if validation works, but for TS safety
-                throw new BadRequestException("Tipo de modificación no soportado");
+                throw new BadRequestException({ message: "Tipo de modificación no soportado", code: ErrorCodes.BUDGET_MODIFICATION_UNSUPPORTED_TYPE });
             }
 
             await queryRunner.manager.save(detailedActivity);
             await queryRunner.commitTransaction();
+
+            await this.auditLog.logSuccess(AuditAction.BUDGET_MODIFICATION_CREATED, AuditEntityType.BUDGET_MODIFICATION, savedModification.id, {
+                entityName: `${savedModification.modificationType} - ${detailedActivity.code}`,
+                system: SYSTEM_NAME,
+                metadata: {
+                    modificationType: savedModification.modificationType,
+                    value: savedModification.value,
+                    detailedActivityId: createDto.detailedActivityId,
+                },
+            });
 
             return savedModification;
         } catch (err) {
@@ -215,7 +230,7 @@ export class BudgetModificationsService {
         });
 
         if (!modification) {
-            throw new NotFoundException(`Modificación con id ${id} no encontrada`);
+            throw new NotFoundException({ message: `Modificación con id ${id} no encontrada`, code: ErrorCodes.BUDGET_MODIFICATION_NOT_FOUND });
         }
 
         return modification;
@@ -223,7 +238,7 @@ export class BudgetModificationsService {
 
     private handleDBExceptions(error: any) {
         if (error.code === "23505") {
-            throw new BadRequestException(error.detail);
+            throw new BadRequestException({ message: error.detail, code: ErrorCodes.DUPLICATE_ENTRY });
         }
         this.logger.error(error);
     }

@@ -6,6 +6,10 @@ import { CdpPosition } from "../entities/cdp-position.entity";
 import { CdpPositionFunding } from "../entities/cdp-position-funding.entity";
 import { CdpProject } from "../entities/cdp-project.entity";
 import { DetailedActivity } from "../../../masters/detailed-activities/entities/detailed-activity.entity";
+import { AuditLogService } from "@common/cosmosdb/audit-log.service";
+import { AuditAction, AuditEntityType } from "@common/types/audit.types";
+import { ErrorCodes } from "@common/errors/error-codes";
+import { SYSTEM_NAME } from "../../../shared/constants";
 
 @Injectable()
 export class CdpFundingService {
@@ -21,6 +25,7 @@ export class CdpFundingService {
         @InjectRepository(DetailedActivity)
         private detailedActivityRepo: Repository<DetailedActivity>,
         private dataSource: DataSource,
+        private readonly auditLog: AuditLogService,
     ) { }
 
     async consumeActivity(
@@ -29,7 +34,7 @@ export class CdpFundingService {
         amount: number
     ): Promise<CdpPositionFunding> {
         if (amount <= 0) {
-            throw new BadRequestException("El monto debe ser mayor a 0");
+            throw new BadRequestException({ message: "El monto debe ser mayor a 0", code: ErrorCodes.CDP_INVALID_AMOUNT });
         }
 
         const queryRunner = this.dataSource.createQueryRunner();
@@ -45,7 +50,7 @@ export class CdpFundingService {
                 .getOne();
 
             if (!position) {
-                throw new NotFoundException("Posición de CDP no encontrada");
+                throw new NotFoundException({ message: "Posición de CDP no encontrada", code: ErrorCodes.CDP_POSITION_NOT_FOUND });
             }
 
             // 2. Get detailed activity and validate balance
@@ -54,14 +59,15 @@ export class CdpFundingService {
             });
 
             if (!activity) {
-                throw new NotFoundException("Actividad detallada no encontrada");
+                throw new NotFoundException({ message: "Actividad detallada no encontrada", code: ErrorCodes.DETAILED_ACTIVITY_NOT_FOUND });
             }
 
             const currentBalance = Number(activity.balance) || 0;
             if (currentBalance < amount) {
-                throw new BadRequestException(
-                    `Saldo insuficiente. Disponible: ${currentBalance}, Solicitado: ${amount}`
-                );
+                throw new BadRequestException({
+                    message: `Saldo insuficiente. Disponible: ${currentBalance}, Solicitado: ${amount}`,
+                    code: ErrorCodes.CDP_INSUFFICIENT_BALANCE,
+                });
             }
 
             // 3. Validate activity belongs to CDP's project
@@ -70,7 +76,7 @@ export class CdpFundingService {
             });
 
             if (!cdpProject) {
-                throw new BadRequestException("La actividad no pertenece al proyecto del CDP");
+                throw new BadRequestException({ message: "La actividad no pertenece al proyecto del CDP", code: ErrorCodes.CDP_ACTIVITY_WRONG_PROJECT });
             }
 
             // 4. Create or update funding (upsert)
@@ -116,6 +122,11 @@ export class CdpFundingService {
             });
 
             await queryRunner.commitTransaction();
+
+            await this.auditLog.logSuccess(AuditAction.CDP_ACTIVITY_CONSUMED, AuditEntityType.CDP_POSITION_FUNDING, funding.id, {
+                system: SYSTEM_NAME,
+                metadata: { positionId, detailedActivityId, amount },
+            });
 
             // Reload funding with relations for response
             return this.fundingRepo.findOne({

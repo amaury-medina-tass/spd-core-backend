@@ -1,6 +1,10 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
+import { AuditLogService } from "@common/cosmosdb/audit-log.service";
+import { AuditAction, AuditEntityType } from "@common/types/audit.types";
+import { ErrorCodes } from "@common/errors/error-codes";
+import { SYSTEM_NAME } from "../../../shared/constants";
 import { VariableLocation } from "../entities/variable-location.entity";
 import { Variable } from "../entities/variable.entity";
 import { Location } from "../../locations/entities/location.entity";
@@ -16,19 +20,20 @@ export class VariableLocationsService {
         private readonly variableRepository: Repository<Variable>,
         @InjectRepository(Location)
         private readonly locationRepository: Repository<Location>,
+        private readonly auditLog: AuditLogService,
     ) { }
 
     async addLocation(variableId: string, locationId: string): Promise<VariableLocation> {
         // Verify variable exists
         const variable = await this.variableRepository.findOne({ where: { id: variableId } });
         if (!variable) {
-            throw new NotFoundException(`Variable con id ${variableId} no encontrada`);
+            throw new NotFoundException({ message: `Variable con id ${variableId} no encontrada`, code: ErrorCodes.VARIABLE_NOT_FOUND });
         }
 
         // Verify location exists
         const location = await this.locationRepository.findOne({ where: { id: locationId } });
         if (!location) {
-            throw new NotFoundException(`Ubicación con id ${locationId} no encontrada`);
+            throw new NotFoundException({ message: `Ubicación con id ${locationId} no encontrada`, code: ErrorCodes.LOCATION_NOT_FOUND });
         }
 
         // Check if relation already exists
@@ -36,7 +41,7 @@ export class VariableLocationsService {
             where: { variableId, locationId }
         });
         if (existing) {
-            throw new BadRequestException("Esta ubicación ya está asociada a la variable");
+            throw new BadRequestException({ message: "Esta ubicación ya está asociada a la variable", code: ErrorCodes.VARIABLE_LOCATION_ALREADY_EXISTS });
         }
 
         const relation = this.variableLocationRepository.create({
@@ -44,7 +49,15 @@ export class VariableLocationsService {
             locationId,
         });
 
-        return await this.variableLocationRepository.save(relation);
+        const saved = await this.variableLocationRepository.save(relation);
+
+        await this.auditLog.logSuccess(AuditAction.VARIABLE_LOCATION_ADDED, AuditEntityType.VARIABLE_LOCATION, saved.id, {
+            entityName: `Variable ${variableId} - Location ${locationId}`,
+            system: SYSTEM_NAME,
+            metadata: { variableId, locationId },
+        });
+
+        return saved;
     }
 
     async removeLocation(variableId: string, locationId: string): Promise<void> {
@@ -53,10 +66,17 @@ export class VariableLocationsService {
         });
 
         if (!relation) {
-            throw new NotFoundException("Relación no encontrada");
+            throw new NotFoundException({ message: "Relación no encontrada", code: ErrorCodes.VARIABLE_LOCATION_NOT_FOUND });
         }
 
+        const relationId = relation.id;
         await this.variableLocationRepository.remove(relation);
+
+        await this.auditLog.logSuccess(AuditAction.VARIABLE_LOCATION_REMOVED, AuditEntityType.VARIABLE_LOCATION, relationId, {
+            entityName: `Variable ${variableId} - Location ${locationId}`,
+            system: SYSTEM_NAME,
+            metadata: { variableId, locationId },
+        });
     }
 
     async findByVariable(variableId: string) {

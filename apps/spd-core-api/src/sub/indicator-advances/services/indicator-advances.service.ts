@@ -1,6 +1,10 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
+import { AuditLogService } from "@common/cosmosdb/audit-log.service";
+import { AuditAction, AuditEntityType } from "@common/types/audit.types";
+import { ErrorCodes } from "@common/errors/error-codes";
+import { SYSTEM_NAME } from "../../../shared/constants";
 import { IndicatorAdvance } from "../entities/indicator-advance.entity";
 
 import { IndicativePlanIndicator } from "../../../masters/indicators/entities/indicative-plan/indicative-plan-indicator.entity";
@@ -51,6 +55,7 @@ export class IndicatorAdvancesService {
         private readonly variableAdvanceRepo: Repository<VariableAdvance>,
         @InjectRepository(VariableContextualAccumulator)
         private readonly variableContextualAccumulatorRepo: Repository<VariableContextualAccumulator>,
+        private readonly auditLog: AuditLogService,
     ) { }
 
     async createOrUpdate(
@@ -81,6 +86,8 @@ export class IndicatorAdvancesService {
 
         let advance = await qb.getOne();
 
+        const isNew = !advance;
+
         if (!advance) {
             advance = repo.create({
                 year,
@@ -94,6 +101,17 @@ export class IndicatorAdvancesService {
         }
 
         const saved = await repo.save(advance);
+
+        await this.auditLog.logSuccess(
+            isNew ? AuditAction.INDICATOR_ADVANCE_CREATED : AuditAction.INDICATOR_ADVANCE_UPDATED,
+            AuditEntityType.INDICATOR_ADVANCE,
+            saved.id,
+            {
+                entityName: `${type} indicator ${indicatorId} - ${year}/${month}`,
+                system: SYSTEM_NAME,
+                metadata: { indicatorId, type, year, month, value },
+            },
+        );
 
         // Update Parent Cache
         await this.updateParentCache(indicatorId, type, manager);
@@ -125,7 +143,7 @@ export class IndicatorAdvancesService {
         }
 
         if (!indicator) {
-            throw new NotFoundException(`Indicator with ID ${indicatorId} not found`);
+            throw new NotFoundException({ message: `Indicator with ID ${indicatorId} not found`, code: ErrorCodes.INDICATOR_ADVANCE_NOT_FOUND });
         }
 
         // 2. Fetch indicator goals (filter by year if specified)

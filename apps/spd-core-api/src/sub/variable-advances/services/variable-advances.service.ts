@@ -1,6 +1,10 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Brackets, DataSource, Repository } from "typeorm";
+import { AuditLogService } from "@common/cosmosdb/audit-log.service";
+import { AuditAction, AuditEntityType } from "@common/types/audit.types";
+import { ErrorCodes } from "@common/errors/error-codes";
+import { SYSTEM_NAME } from "../../../shared/constants";
 import { CreateVariableAdvanceDto } from "../dtos/create-variable-advance.dto";
 import { VariableAdvance } from "../entities/variable-advance.entity";
 import { VariableContextualAccumulator } from "../entities/variable-contextual-accumulator.entity";
@@ -47,6 +51,7 @@ export class VariableAdvancesService {
         private readonly astEvaluator: AstEvaluatorService,
         private readonly indicatorAdvancesService: IndicatorAdvancesService,
         private readonly dataSource: DataSource,
+        private readonly auditLog: AuditLogService,
     ) { }
 
     async create(createDto: CreateVariableAdvanceDto): Promise<VariableAdvance> {
@@ -65,6 +70,13 @@ export class VariableAdvancesService {
             this.logger.log(`Contextual calculation completed for variable ${savedAdvance.variableId}.`);
 
             await queryRunner.commitTransaction();
+
+            await this.auditLog.logSuccess(AuditAction.VARIABLE_ADVANCE_CREATED, AuditEntityType.VARIABLE_ADVANCE, savedAdvance.id, {
+                entityName: `Variable ${savedAdvance.variableId} - ${savedAdvance.year}/${savedAdvance.month}`,
+                system: SYSTEM_NAME,
+                metadata: { variableId: savedAdvance.variableId, year: savedAdvance.year, month: savedAdvance.month, value: savedAdvance.value },
+            });
+
             return savedAdvance;
 
         } catch (error) {
@@ -486,7 +498,7 @@ export class VariableAdvancesService {
         });
 
         if (!variableAdvance) {
-            throw new NotFoundException(`Variable Advance with id ${id} not found`);
+            throw new NotFoundException({ message: `Variable Advance with id ${id} not found`, code: ErrorCodes.VARIABLE_ADVANCE_NOT_FOUND });
         }
 
         return variableAdvance;
@@ -503,7 +515,7 @@ export class VariableAdvancesService {
         const variable = await variableRepo.findOne({ where: { id: variableId } }) as any; // Cast for now, avoiding import if possible
 
         if (!variable) {
-            throw new NotFoundException(`Variable with ID ${variableId} not found`);
+            throw new NotFoundException({ message: `Variable with ID ${variableId} not found`, code: ErrorCodes.VARIABLE_NOT_FOUND });
         }
 
         // 2. Fetch Goals

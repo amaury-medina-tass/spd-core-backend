@@ -1,18 +1,24 @@
-import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from "@nestjs/common";
+import { JwtAuthGuard } from "../../../auth/guards/jwt-auth.guard";
+import { PermissionsGuard } from "../../../common/guards/permissions.guard";
+import { RequirePermission } from "../../../common/decorators/require-permission.decorator";
 import { VariableAdvancesService } from "../services/variable-advances.service";
 import { CreateVariableAdvanceDto } from "../dtos/create-variable-advance.dto";
 
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller("sub/variable-advances")
 export class VariableAdvancesController {
     constructor(private readonly variableAdvancesService: VariableAdvancesService) { }
 
     @Post()
+    @RequirePermission("/sub/variable-advances", "CREATE")
     create(@Body() createDto: CreateVariableAdvanceDto) {
         return this.variableAdvancesService.create(createDto);
     }
 
 
     @Get()
+    @RequirePermission("/sub/variable-advances", "READ")
     findAll(
         @Query("variableId", ParseUUIDPipe) variableId: string,
         @Query("page") page: number,
@@ -32,6 +38,7 @@ export class VariableAdvancesController {
     }
 
     @Get("contextual/action-indicator/:indicatorId")
+    @RequirePermission("/sub/variable-advances", "READ")
     findAllByActionIndicator(
         @Param("indicatorId", ParseUUIDPipe) indicatorId: string,
         @Query("year") year?: number,
@@ -49,6 +56,7 @@ export class VariableAdvancesController {
     }
 
     @Get("contextual/indicative-indicator/:indicatorId")
+    @RequirePermission("/sub/variable-advances", "READ")
     findAllByIndicativeIndicator(
         @Param("indicatorId", ParseUUIDPipe) indicatorId: string,
         @Query("year") year?: number,
@@ -66,11 +74,13 @@ export class VariableAdvancesController {
     }
 
     @Get(":id")
+    @RequirePermission("/sub/variable-advances", "READ")
     findOne(@Param("id", ParseUUIDPipe) id: string) {
         return this.variableAdvancesService.findOne(id);
     }
 
     @Get(":id/details")
+    @RequirePermission("/sub/variable-advances", "READ")
     async getDetails(
         @Param("id", ParseUUIDPipe) id: string,
         @Query("year") year?: string,

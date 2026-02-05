@@ -1,6 +1,10 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, Brackets } from "typeorm";
+import { AuditLogService } from "@common/cosmosdb/audit-log.service";
+import { AuditAction, AuditEntityType } from "@common/types/audit.types";
+import { ErrorCodes } from "@common/errors/error-codes";
+import { SYSTEM_NAME } from "../../../shared/constants";
 import { VariableGoal } from "../entities/variable-goal.entity";
 import { CreateVariableGoalDto } from "../dtos/create-variable-goal.dto";
 import { UpdateVariableGoalDto } from "../dtos/update-variable-goal.dto";
@@ -12,12 +16,21 @@ export class VariableGoalsService {
     constructor(
         @InjectRepository(VariableGoal)
         private readonly variableGoalRepository: Repository<VariableGoal>,
+        private readonly auditLog: AuditLogService,
     ) { }
 
     async create(createDto: CreateVariableGoalDto): Promise<VariableGoal> {
         try {
             const variableGoal = this.variableGoalRepository.create(createDto);
-            return await this.variableGoalRepository.save(variableGoal);
+            const saved = await this.variableGoalRepository.save(variableGoal);
+
+            await this.auditLog.logSuccess(AuditAction.VARIABLE_GOAL_CREATED, AuditEntityType.VARIABLE_GOAL, saved.id, {
+                entityName: `Variable Goal - Year ${saved.year}`,
+                system: SYSTEM_NAME,
+                metadata: { variableId: saved.variableId, year: saved.year, value: saved.value },
+            });
+
+            return saved;
         } catch (error) {
             this.handleDBExceptions(error);
             throw error;
@@ -95,11 +108,19 @@ export class VariableGoalsService {
         });
 
         if (!variableGoal) {
-            throw new NotFoundException(`Variable Goal with id ${id} not found`);
+            throw new NotFoundException({ message: `Variable Goal with id ${id} not found`, code: ErrorCodes.VARIABLE_GOAL_NOT_FOUND });
         }
 
         try {
-            return await this.variableGoalRepository.save(variableGoal);
+            const saved = await this.variableGoalRepository.save(variableGoal);
+
+            await this.auditLog.logSuccess(AuditAction.VARIABLE_GOAL_UPDATED, AuditEntityType.VARIABLE_GOAL, saved.id, {
+                entityName: `Variable Goal - Year ${saved.year}`,
+                system: SYSTEM_NAME,
+                metadata: { variableId: saved.variableId, year: saved.year, value: saved.value },
+            });
+
+            return saved;
         } catch (error) {
             this.handleDBExceptions(error);
             throw error;
@@ -110,10 +131,15 @@ export class VariableGoalsService {
         const variableGoal = await this.variableGoalRepository.findOne({ where: { id } });
 
         if (!variableGoal) {
-            throw new NotFoundException(`Variable Goal with id ${id} not found`);
+            throw new NotFoundException({ message: `Variable Goal with id ${id} not found`, code: ErrorCodes.VARIABLE_GOAL_NOT_FOUND });
         }
 
         await this.variableGoalRepository.remove(variableGoal);
+
+        await this.auditLog.logSuccess(AuditAction.VARIABLE_GOAL_DELETED, AuditEntityType.VARIABLE_GOAL, id, {
+            entityName: `Variable Goal - Year ${variableGoal.year}`,
+            system: SYSTEM_NAME,
+        });
     }
 
     private handleDBExceptions(error: any) {
