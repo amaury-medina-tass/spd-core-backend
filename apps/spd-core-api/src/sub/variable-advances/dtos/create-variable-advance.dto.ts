@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Max, Min } from "class-validator";
+import { IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Max, Min, IsArray } from "class-validator";
 
 export class CreateVariableAdvanceDto {
     @IsUUID()
@@ -22,4 +22,9 @@ export class CreateVariableAdvanceDto {
     @IsString()
     @IsOptional()
     observations?: string;
+
+    @IsArray()
+    @IsUUID('4', { each: true })
+    @IsOptional()
+    communeIds?: string[];
 }

@@ -15,6 +15,11 @@ import { VariableIndicativeRelation } from "../../../masters/indicators/entities
 import { VariableActionRelation } from "../../../masters/indicators/entities/action-plan/variable-action-relation.entity";
 import { VariableQuadrennium } from "../../../masters/variables/entities/variable-quadrennium.entity";
 import { Variable } from "../../../masters/variables/entities/variable.entity";
+import { VariableLocation } from "../../../masters/variables/entities/variable-location.entity";
+import { Location } from "../../../masters/locations/entities/location.entity";
+import { Commune } from "../../../masters/locations/entities/commune.entity";
+import { VariableLocationResponseDto, VariableAdvanceWithLocationDto, VariableAdvancesWithLocationsResponseDto } from "../dtos/variable-location-response.dto";
+import { VariableAdvanceCommune } from "../entities/variable-advance-commune.entity";
 
 // Placeholder imports for Goal repositories - assuming generic approach or direct query
 import { IndicativePlanIndicator } from "../../../masters/indicators/entities/indicative-plan/indicative-plan-indicator.entity";
@@ -49,6 +54,10 @@ export class VariableAdvancesService {
         private readonly indicativeGoalRepository: Repository<IndicativePlanIndicatorGoal>,
         @InjectRepository(ActionPlanIndicatorGoal)
         private readonly actionGoalRepository: Repository<ActionPlanIndicatorGoal>,
+        @InjectRepository(VariableLocation)
+        private readonly variableLocationRepository: Repository<VariableLocation>,
+        @InjectRepository(VariableAdvanceCommune)
+        private readonly variableAdvanceCommuneRepository: Repository<VariableAdvanceCommune>,
         private readonly astEvaluator: AstEvaluatorService,
         private readonly indicatorAdvancesService: IndicatorAdvancesService,
         private readonly dataSource: DataSource,
@@ -65,7 +74,18 @@ export class VariableAdvancesService {
             const variableAdvance = this.variableAdvanceRepository.create(createDto);
             const savedAdvance = await queryRunner.manager.save(VariableAdvance, variableAdvance);
 
-            // 2. Trigger Calculation
+            // 2. Save commune relations if provided
+            if (createDto.communeIds && createDto.communeIds.length > 0) {
+                const communeRelations = createDto.communeIds.map(communeId => 
+                    queryRunner.manager.create(VariableAdvanceCommune, {
+                        variableAdvanceId: savedAdvance.id,
+                        communeId
+                    })
+                );
+                await queryRunner.manager.save(VariableAdvanceCommune, communeRelations);
+            }
+
+            // 3. Trigger Calculation
             this.logger.log(`Advance created for variable ${savedAdvance.variableId}. Triggering contextual calculation...`);
             await this.calculateContextualAccumulators(savedAdvance.variableId, savedAdvance.year, savedAdvance.month, queryRunner.manager);
             this.logger.log(`Contextual calculation completed for variable ${savedAdvance.variableId}.`);
@@ -77,7 +97,13 @@ export class VariableAdvancesService {
             await this.auditLog.logSuccess(AuditAction.VARIABLE_ADVANCE_CREATED, AuditEntityType.VARIABLE_ADVANCE, savedAdvance.id, {
                 entityName: `${variable?.code ?? savedAdvance.variableId} - ${savedAdvance.year}/${savedAdvance.month}`,
                 system: SYSTEM_NAME,
-                metadata: { variableId: savedAdvance.variableId, year: savedAdvance.year, month: savedAdvance.month, value: savedAdvance.value },
+                metadata: { 
+                    variableId: savedAdvance.variableId, 
+                    year: savedAdvance.year, 
+                    month: savedAdvance.month, 
+                    value: savedAdvance.value,
+                    communeIds: createDto.communeIds 
+                },
             });
 
             return savedAdvance;
@@ -772,6 +798,154 @@ export class VariableAdvancesService {
                 hasNextPage: page < totalPages,
                 hasPreviousPage: page > 1,
             }
+        };
+    }
+
+    /**
+     * Get variable locations for mapping
+     */
+    async getVariableLocations(variableId: string): Promise<VariableLocationResponseDto> {
+        const variable = await this.dataSource.getRepository(Variable).findOne({ 
+            where: { id: variableId } 
+        });
+
+        if (!variable) {
+            throw new NotFoundException(`Variable with ID ${variableId} not found`);
+        }
+
+        const variableLocations = await this.variableLocationRepository
+            .createQueryBuilder('vl')
+            .leftJoinAndSelect('vl.location', 'location')
+            .leftJoinAndSelect('location.commune', 'commune')
+            .where('vl.variableId = :variableId', { variableId })
+            .getMany();
+
+        const locations = variableLocations.map(vl => ({
+            id: vl.location.id,
+            communeId: vl.location.communeId,
+            communeCode: vl.location.commune.code,
+            communeName: vl.location.commune.name,
+            address: vl.location.address,
+            latitude: vl.location.latitude ? parseFloat(vl.location.latitude.toString()) : undefined,
+            longitude: vl.location.longitude ? parseFloat(vl.location.longitude.toString()) : undefined,
+        }));
+
+        return {
+            variableId: variable.id,
+            variableCode: variable.code,
+            variableName: variable.name,
+            locations,
+        };
+    }
+
+    /**
+     * Get locations for all variables associated with an indicator
+     */
+    async getIndicatorVariablesLocations(indicatorId: string, type: 'indicative' | 'action'): Promise<VariableLocationResponseDto[]> {
+        let variableIds: string[];
+
+        if (type === 'indicative') {
+            const relations = await this.variableIndicativeRelationRepository.find({
+                where: { indicatorId },
+                select: ['variableId']
+            });
+            variableIds = [...new Set(relations.map(r => r.variableId))];
+        } else {
+            const relations = await this.variableActionRelationRepository.find({
+                where: { indicatorId },
+                select: ['variableId']
+            });
+            variableIds = [...new Set(relations.map(r => r.variableId))];
+        }
+
+        if (variableIds.length === 0) {
+            return [];
+        }
+
+        const results = await Promise.all(
+            variableIds.map(varId => this.getVariableLocations(varId).catch(() => null))
+        );
+
+        return results.filter((r): r is VariableLocationResponseDto => r !== null);
+    }
+
+    /**
+     * Get variable advances with location information
+     */
+    async getVariableAdvancesWithLocations(
+        variableId: string,
+        year?: number,
+        month?: number
+    ): Promise<VariableAdvancesWithLocationsResponseDto> {
+        const queryBuilder = this.variableAdvanceRepository
+            .createQueryBuilder('va')
+            .leftJoinAndSelect('va.variable', 'variable')
+            .where('va.variableId = :variableId', { variableId });
+
+        if (year) {
+            queryBuilder.andWhere('va.year = :year', { year });
+        }
+
+        if (month) {
+            queryBuilder.andWhere('va.month = :month', { month });
+        }
+
+        const advances = await queryBuilder
+            .orderBy('va.year', 'DESC')
+            .addOrderBy('va.month', 'DESC')
+            .getMany();
+
+        // Get commune relations for all advances
+        const advanceIds = advances.map(a => a.id);
+        const communeRelations = advanceIds.length > 0 
+            ? await this.variableAdvanceCommuneRepository
+                .createQueryBuilder('vac')
+                .leftJoinAndSelect('vac.commune', 'commune')
+                .where('vac.variableAdvanceId IN (:...advanceIds)', { advanceIds })
+                .getMany()
+            : [];
+
+        // Map commune relations to advances
+        const communesByAdvanceId = communeRelations.reduce((acc, rel) => {
+            if (!acc[rel.variableAdvanceId]) {
+                acc[rel.variableAdvanceId] = [];
+            }
+            acc[rel.variableAdvanceId].push({
+                id: rel.commune.id,
+                communeId: rel.commune.id,
+                communeCode: rel.commune.code,
+                communeName: rel.commune.name,
+            });
+            return acc;
+        }, {} as Record<string, any[]>);
+
+        const mappedAdvances = advances.map(advance => ({
+            id: advance.id,
+            year: advance.year,
+            month: advance.month,
+            value: advance.value,
+            observations: advance.observations,
+            createAt: advance.createAt,
+            variable: {
+                id: advance.variable.id,
+                code: advance.variable.code,
+                name: advance.variable.name,
+            },
+            locations: communesByAdvanceId[advance.id] || [],
+        }));
+
+        // Also fetch variable-level locations (from variable_locations table)
+        let variableLocations: VariableAdvancesWithLocationsResponseDto['variableLocations'] = [];
+        try {
+            const varLocData = await this.getVariableLocations(variableId);
+            variableLocations = varLocData.locations;
+        } catch {
+            // Variable may have no locations assigned
+        }
+
+        return {
+            advances: mappedAdvances,
+            variableLocations,
         };
     }
 

@@ -10,7 +10,7 @@ export class CommunesController {
     constructor(private readonly communesService: CommunesService) { }
 
     @Get("select")
-    @RequirePermission("/masters/communes", "READ")
+    @RequirePermission("/sub/variables", "READ")
     findForSelect(
         @Query("search") search?: string,
         @Query("limit") limit?: number,

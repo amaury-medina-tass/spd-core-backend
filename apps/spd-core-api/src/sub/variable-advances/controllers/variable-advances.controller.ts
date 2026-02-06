@@ -37,6 +37,7 @@ export class VariableAdvancesController {
         );
     }
 
+    // Specific routes MUST come before generic parameterized routes
     @Get("contextual/action-indicator/:indicatorId")
     @RequirePermission("/sub/variables", "READ")
     findAllByActionIndicator(
@@ -73,12 +74,39 @@ export class VariableAdvancesController {
         );
     }
 
-    @Get(":id")
+    @Get("locations/variable/:variableId")
     @RequirePermission("/sub/variables", "READ")
-    findOne(@Param("id", ParseUUIDPipe) id: string) {
-        return this.variableAdvancesService.findOne(id);
+    getVariableLocations(@Param("variableId", ParseUUIDPipe) variableId: string) {
+        return this.variableAdvancesService.getVariableLocations(variableId);
     }
 
+    @Get("locations/indicator/:indicatorId/:type")
+    @RequirePermission("/sub/variables", "READ")
+    getIndicatorVariablesLocations(
+        @Param("indicatorId", ParseUUIDPipe) indicatorId: string,
+        @Param("type") type: 'indicative' | 'action'
+    ) {
+        if (type !== 'indicative' && type !== 'action') {
+            throw new BadRequestException("Type must be 'indicative' or 'action'");
+        }
+        return this.variableAdvancesService.getIndicatorVariablesLocations(indicatorId, type);
+    }
+
+    @Get("with-locations/variable/:variableId")
+    @RequirePermission("/sub/variables", "READ")
+    getVariableAdvancesWithLocations(
+        @Param("variableId", ParseUUIDPipe) variableId: string,
+        @Query("year") year?: number,
+        @Query("month") month?: number
+    ) {
+        return this.variableAdvancesService.getVariableAdvancesWithLocations(
+            variableId,
+            year ? +year : undefined,
+            month ? +month : undefined
+        );
+    }
+
+    // Generic parameterized routes MUST come after specific routes
     @Get(":id/details")
     @RequirePermission("/sub/variables", "READ")
     async getDetails(
@@ -93,5 +121,11 @@ export class VariableAdvancesController {
         if (parsedMonth && isNaN(parsedMonth)) throw new BadRequestException("Invalid month");
 
         return this.variableAdvancesService.getVariableDetails(id, parsedYear, parsedMonth);
+    }
+
+    @Get(":id")
+    @RequirePermission("/sub/variables", "READ")
+    findOne(@Param("id", ParseUUIDPipe) id: string) {
+        return this.variableAdvancesService.findOne(id);
     }
 }

@@ -1,8 +1,12 @@
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { VariableAdvance } from "./entities/variable-advance.entity";
+import { VariableAdvanceCommune } from "./entities/variable-advance-commune.entity";
 import { Variable } from "../../masters/variables/entities/variable.entity";
 import { VariableQuadrennium } from "../../masters/variables/entities/variable-quadrennium.entity";
+import { VariableLocation } from "../../masters/variables/entities/variable-location.entity";
+import { Location } from "../../masters/locations/entities/location.entity";
+import { Commune } from "../../masters/locations/entities/commune.entity";
 import { VariableAdvancesController } from "./controllers/variable-advances.controller";
 import { VariableAdvancesService } from "./services/variable-advances.service";
 import { ActionPlanIndicatorGoal } from "../../masters/indicators/entities/action-plan/action-plan-indicator-goal.entity";
@@ -21,6 +25,7 @@ import { forwardRef } from "@nestjs/common";
     imports: [
         TypeOrmModule.forFeature([
             VariableAdvance,
+            VariableAdvanceCommune,
             VariableContextualAccumulator,
             Formula,
             VariableGoal,
@@ -31,6 +36,9 @@ import { forwardRef } from "@nestjs/common";
             IndicativePlanIndicatorGoal,
             ActionPlanIndicatorGoal,
             Variable,
+            VariableLocation,
+            Location,
+            Commune,
         ]),
         IndicatorAdvancesModule,
         forwardRef(() => IndicatorsModule),
