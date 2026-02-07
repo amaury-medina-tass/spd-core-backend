@@ -14,6 +14,7 @@ import { SapSyncModule } from "./sap-sync/sap-sync.module";
 import { SubModule } from "./sub/sub.module";
 import { RedisModule } from "@common/redis/redis.module";
 import { CosmosDbModule } from "@common/cosmosdb/cosmosdb.module";
+import { InternalModule } from "./internal/internal.module";
 
 @Module({
   imports: [
@@ -29,11 +30,12 @@ import { CosmosDbModule } from "@common/cosmosdb/cosmosdb.module";
 
     MastersModule,
     FinancialModule,
-    MastersModule,
-    FinancialModule,
     SapSyncModule,
     SubModule,
     RedisModule,
+
+    // Endpoints internos (server-to-server) para spd-files
+    InternalModule,
   ],
   providers: [JwtStrategy],
 })
