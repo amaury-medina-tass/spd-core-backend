@@ -184,6 +184,14 @@ export const ErrorCodes = {
     COMMUNE_NOT_FOUND: "COMMUNE_NOT_FOUND",
 
     // ============================================================
+    // Asignación de Usuarios a Indicadores/Variables
+    // ============================================================
+    INDICATOR_USER_ALREADY_ASSIGNED: "INDICATOR_USER_ALREADY_ASSIGNED",
+    INDICATOR_USER_NOT_ASSIGNED: "INDICATOR_USER_NOT_ASSIGNED",
+    VARIABLE_USER_ALREADY_ASSIGNED: "VARIABLE_USER_ALREADY_ASSIGNED",
+    VARIABLE_USER_NOT_ASSIGNED: "VARIABLE_USER_NOT_ASSIGNED",
+
+    // ============================================================
     // General
     // ============================================================
     DUPLICATE_ENTRY: "DUPLICATE_ENTRY",

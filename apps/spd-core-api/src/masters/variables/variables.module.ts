@@ -13,14 +13,17 @@ import { VariableGoalsController } from "./controllers/variable-goals.controller
 import { VariableQuadrenniumsController } from "./controllers/variable-quadrenniums.controller";
 import { VariableLocationsController } from "./controllers/variable-locations.controller";
 import { LocationsModule } from "../locations/locations.module";
+import { VariableUser } from "./entities/variable-user.entity";
+import { VariableUsersService } from "./services/variable-users.service";
+import { VariableUsersController } from "./controllers/variable-users.controller";
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([Variable, VariableGoal, VariableQuadrennium, VariableLocation]),
+        TypeOrmModule.forFeature([Variable, VariableGoal, VariableQuadrennium, VariableLocation, VariableUser]),
         LocationsModule,
     ],
-    controllers: [VariablesController, VariableGoalsController, VariableQuadrenniumsController, VariableLocationsController],
-    providers: [VariablesService, VariableGoalsService, VariableQuadrenniumsService, VariableLocationsService],
-    exports: [VariablesService, VariableGoalsService, VariableQuadrenniumsService, VariableLocationsService],
+    controllers: [VariablesController, VariableGoalsController, VariableQuadrenniumsController, VariableLocationsController, VariableUsersController],
+    providers: [VariablesService, VariableGoalsService, VariableQuadrenniumsService, VariableLocationsService, VariableUsersService],
+    exports: [VariablesService, VariableGoalsService, VariableQuadrenniumsService, VariableLocationsService, VariableUsersService],
 })
 export class VariablesModule { }

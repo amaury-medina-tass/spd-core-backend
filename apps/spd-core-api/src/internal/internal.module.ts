@@ -8,6 +8,10 @@ import { DetailedActivitiesModule } from "../masters/detailed-activities/detaile
 import { ProductsModule } from "../masters/products/products.module";
 import { ProjectsModule } from "../financial/projects/projects.module";
 import { MgaDetailedRelation } from "../masters/mga-activities/entities/mga-detailed-relation.entity";
+import { Cdp } from "../financial/cdps/entities/cdp.entity";
+import { CdpPositionFunding } from "../financial/cdps/entities/cdp-position-funding.entity";
+import { ContractCdpRelation } from "../financial/contract-cdp-relations/entities/contract-cdp-relation.entity";
+import { CdpProject } from "../financial/cdps/entities/cdp-project.entity";
 
 /**
  * Módulo de endpoints internos (server-to-server).
@@ -20,7 +24,7 @@ import { MgaDetailedRelation } from "../masters/mga-activities/entities/mga-deta
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([MgaDetailedRelation]),
+    TypeOrmModule.forFeature([MgaDetailedRelation, Cdp, CdpPositionFunding, ContractCdpRelation, CdpProject]),
     MgaActivitiesModule,
     CdpsModule,
     DetailedActivitiesModule,

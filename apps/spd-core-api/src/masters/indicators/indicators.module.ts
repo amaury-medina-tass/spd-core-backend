@@ -46,6 +46,12 @@ import { ActionPlanIndicatorLocationsController } from "./controllers/action-pla
 import { LocationsModule } from "../locations/locations.module";
 import { VariableLocation } from "../variables/entities/variable-location.entity";
 import { Commune } from "../locations/entities/commune.entity";
+import { IndicativeIndicatorUser } from "./entities/indicative-plan/indicative-indicator-user.entity";
+import { ActionIndicatorUser } from "./entities/action-plan/action-indicator-user.entity";
+import { IndicativeIndicatorUsersService } from "./services/indicative-plan/indicative-indicator-users.service";
+import { ActionIndicatorUsersService } from "./services/action-plan/action-indicator-users.service";
+import { IndicativeIndicatorUsersController } from "./controllers/indicative-plan/indicative-indicator-users.controller";
+import { ActionIndicatorUsersController } from "./controllers/action-plan/action-indicator-users.controller";
 
 @Module({
     imports: [
@@ -70,6 +76,8 @@ import { Commune } from "../locations/entities/commune.entity";
             IndicatorLocation,
             VariableLocation,
             Commune,
+            IndicativeIndicatorUser,
+            ActionIndicatorUser,
         ]),
         forwardRef(() => VariableAdvancesModule),
         LocationsModule,
@@ -87,6 +95,8 @@ import { Commune } from "../locations/entities/commune.entity";
         FormulasController,
         IndicativePlanIndicatorLocationsController,
         ActionPlanIndicatorLocationsController,
+        IndicativeIndicatorUsersController,
+        ActionIndicatorUsersController,
     ],
     providers: [
         IndicativePlanIndicatorsService,
@@ -100,6 +110,8 @@ import { Commune } from "../locations/entities/commune.entity";
         ProjectActionIndicatorRelationsService,
         FormulasService,
         IndicatorLocationsService,
+        IndicativeIndicatorUsersService,
+        ActionIndicatorUsersService,
     ],
     exports: [
         IndicativePlanIndicatorsService,
@@ -113,6 +125,8 @@ import { Commune } from "../locations/entities/commune.entity";
         ProjectActionIndicatorRelationsService,
         FormulasService,
         IndicatorLocationsService,
+        IndicativeIndicatorUsersService,
+        ActionIndicatorUsersService,
     ],
 })
 export class IndicatorsModule { }

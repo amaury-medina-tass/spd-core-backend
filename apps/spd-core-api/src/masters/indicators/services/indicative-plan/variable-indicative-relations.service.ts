@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { BadRequestException, forwardRef, Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Brackets, Repository } from "typeorm";
 import { AuditLogService } from "@common/cosmosdb/audit-log.service";
@@ -8,6 +8,8 @@ import { SYSTEM_NAME } from "../../../../shared/constants";
 import { VariableIndicativeRelation } from "../../entities/indicative-plan/variable-indicative-relation.entity";
 import { IndicativePlanIndicator } from "../../entities/indicative-plan/indicative-plan-indicator.entity";
 import { Variable } from "../../../variables/entities/variable.entity";
+import { Formula } from "../../entities/formula.entity";
+import { VariableAdvancesService } from "../../../../sub/variable-advances/services/variable-advances.service";
 
 @Injectable()
 export class VariableIndicativeRelationsService {
@@ -20,6 +22,10 @@ export class VariableIndicativeRelationsService {
         private readonly indicativePlanIndicatorRepository: Repository<IndicativePlanIndicator>,
         @InjectRepository(Variable)
         private readonly variableRepository: Repository<Variable>,
+        @InjectRepository(Formula)
+        private readonly formulaRepository: Repository<Formula>,
+        @Inject(forwardRef(() => VariableAdvancesService))
+        private readonly variableAdvancesService: VariableAdvancesService,
         private readonly auditLog: AuditLogService,
     ) { }
 
@@ -41,6 +47,9 @@ export class VariableIndicativeRelationsService {
                 system: SYSTEM_NAME,
                 metadata: { indicatorId, variableId },
             });
+
+            // Recalculate variable advances for all formulas of this indicator
+            await this.recalculateIndicatorFormulas(indicatorId);
 
             return saved;
         } catch (error) {
@@ -69,6 +78,9 @@ export class VariableIndicativeRelationsService {
             system: SYSTEM_NAME,
             metadata: { indicatorId, variableId },
         });
+
+        // Recalculate variable advances for all formulas of this indicator
+        await this.recalculateIndicatorFormulas(indicatorId);
     }
 
     async findPaginated(
@@ -157,5 +169,28 @@ export class VariableIndicativeRelationsService {
             throw new BadRequestException("The variable is already associated with this indicator.");
         }
         this.logger.error(error);
+    }
+
+    /**
+     * Recalculate variable advances for all formulas associated with an indicator.
+     * Called when variables are associated/disassociated to ensure calculated values are up to date.
+     */
+    private async recalculateIndicatorFormulas(indicatorId: string): Promise<void> {
+        try {
+            const formulas = await this.formulaRepository.find({
+                where: { indicativeIndicatorId: indicatorId },
+            });
+
+            this.logger.log(`Recalculating ${formulas.length} formula(s) for indicative indicator ${indicatorId}`);
+
+            for (const formula of formulas) {
+                await this.variableAdvancesService.recalculateForFormula(formula);
+            }
+
+            this.logger.log(`Recalculation completed for indicator ${indicatorId}`);
+        } catch (error) {
+            this.logger.error(`Failed to recalculate formulas for indicator ${indicatorId}:`, error);
+            // Don't throw - we don't want to fail the association/disassociation if recalculation fails
+        }
     }
 }

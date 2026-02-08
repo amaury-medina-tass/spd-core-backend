@@ -62,10 +62,18 @@ export enum AuditAction {
     VARIABLE_LOCATION_ADDED = "VARIABLE_LOCATION_ADDED",
     VARIABLE_LOCATION_REMOVED = "VARIABLE_LOCATION_REMOVED",
 
+    // --- Asignación de Usuarios a Variables ---
+    VARIABLE_USER_ASSIGNED = "VARIABLE_USER_ASSIGNED",
+    VARIABLE_USER_UNASSIGNED = "VARIABLE_USER_UNASSIGNED",
+
     // --- Indicadores Plan Indicativo ---
     INDICATIVE_INDICATOR_CREATED = "INDICATIVE_INDICATOR_CREATED",
     INDICATIVE_INDICATOR_UPDATED = "INDICATIVE_INDICATOR_UPDATED",
     INDICATIVE_INDICATOR_DELETED = "INDICATIVE_INDICATOR_DELETED",
+
+    // --- Asignación de Usuarios a Indicadores Plan Indicativo ---
+    INDICATIVE_INDICATOR_USER_ASSIGNED = "INDICATIVE_INDICATOR_USER_ASSIGNED",
+    INDICATIVE_INDICATOR_USER_UNASSIGNED = "INDICATIVE_INDICATOR_USER_UNASSIGNED",
 
     // --- Metas de Indicadores Plan Indicativo ---
     INDICATIVE_INDICATOR_GOAL_CREATED = "INDICATIVE_INDICATOR_GOAL_CREATED",
@@ -81,6 +89,10 @@ export enum AuditAction {
     ACTION_INDICATOR_CREATED = "ACTION_INDICATOR_CREATED",
     ACTION_INDICATOR_UPDATED = "ACTION_INDICATOR_UPDATED",
     ACTION_INDICATOR_DELETED = "ACTION_INDICATOR_DELETED",
+
+    // --- Asignación de Usuarios a Indicadores Plan de Acción ---
+    ACTION_INDICATOR_USER_ASSIGNED = "ACTION_INDICATOR_USER_ASSIGNED",
+    ACTION_INDICATOR_USER_UNASSIGNED = "ACTION_INDICATOR_USER_UNASSIGNED",
 
     // --- Metas de Indicadores Plan de Acción ---
     ACTION_INDICATOR_GOAL_CREATED = "ACTION_INDICATOR_GOAL_CREATED",
@@ -265,10 +277,18 @@ export const ACTION_LABELS: Record<AuditAction, string> = {
     [AuditAction.VARIABLE_LOCATION_ADDED]: "Ubicación de Variable Agregada",
     [AuditAction.VARIABLE_LOCATION_REMOVED]: "Ubicación de Variable Removida",
 
+    // Asignación de Usuarios a Variables
+    [AuditAction.VARIABLE_USER_ASSIGNED]: "Usuario Asignado a Variable",
+    [AuditAction.VARIABLE_USER_UNASSIGNED]: "Usuario Desasignado de Variable",
+
     // Indicadores Plan Indicativo
     [AuditAction.INDICATIVE_INDICATOR_CREATED]: "Indicador Plan Indicativo Creado",
     [AuditAction.INDICATIVE_INDICATOR_UPDATED]: "Indicador Plan Indicativo Actualizado",
     [AuditAction.INDICATIVE_INDICATOR_DELETED]: "Indicador Plan Indicativo Eliminado",
+
+    // Asignación de Usuarios a Indicadores Plan Indicativo
+    [AuditAction.INDICATIVE_INDICATOR_USER_ASSIGNED]: "Usuario Asignado a Indicador Plan Indicativo",
+    [AuditAction.INDICATIVE_INDICATOR_USER_UNASSIGNED]: "Usuario Desasignado de Indicador Plan Indicativo",
 
     [AuditAction.INDICATIVE_INDICATOR_GOAL_CREATED]: "Meta de Indicador Plan Indicativo Creada",
     [AuditAction.INDICATIVE_INDICATOR_GOAL_UPDATED]: "Meta de Indicador Plan Indicativo Actualizada",
@@ -282,6 +302,10 @@ export const ACTION_LABELS: Record<AuditAction, string> = {
     [AuditAction.ACTION_INDICATOR_CREATED]: "Indicador Plan de Acción Creado",
     [AuditAction.ACTION_INDICATOR_UPDATED]: "Indicador Plan de Acción Actualizado",
     [AuditAction.ACTION_INDICATOR_DELETED]: "Indicador Plan de Acción Eliminado",
+
+    // Asignación de Usuarios a Indicadores Plan de Acción
+    [AuditAction.ACTION_INDICATOR_USER_ASSIGNED]: "Usuario Asignado a Indicador Plan de Acción",
+    [AuditAction.ACTION_INDICATOR_USER_UNASSIGNED]: "Usuario Desasignado de Indicador Plan de Acción",
 
     [AuditAction.ACTION_INDICATOR_GOAL_CREATED]: "Meta de Indicador Plan de Acción Creada",
     [AuditAction.ACTION_INDICATOR_GOAL_UPDATED]: "Meta de Indicador Plan de Acción Actualizada",
