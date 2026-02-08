@@ -19,7 +19,7 @@ export class IndicativeIndicatorUsersController {
     @Post(":id/users")
     @RequirePermission("/masters/indicators", "UPDATE")
     assignUser(@Param("id", ParseUUIDPipe) id: string, @Body() dto: AssignUserDto) {
-        return this.service.assign(id, dto.userId);
+        return this.service.assign(id, dto.userId, dto.userName);
     }
 
     @Delete(":id/users/:userId")

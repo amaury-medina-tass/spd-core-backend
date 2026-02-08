@@ -28,7 +28,7 @@ export class ActionIndicatorUsersService {
         return this.repo.find({ where: { indicatorId }, order: { createdAt: "DESC" } });
     }
 
-    async assign(indicatorId: string, userId: string) {
+    async assign(indicatorId: string, userId: string, userName?: string) {
         const indicator = await this.indicatorRepo.findOne({ where: { id: indicatorId } });
         if (!indicator) {
             throw new NotFoundException({ message: "Indicador no encontrado", code: ErrorCodes.ACTION_INDICATOR_NOT_FOUND });
@@ -42,27 +42,30 @@ export class ActionIndicatorUsersService {
         const entity = this.repo.create({ indicatorId, userId });
         const saved = await this.repo.save(entity);
 
+        const userDisplayName = userName ?? `Usuario ${userId.substring(0, 8)}`;
         await this.auditLog.logSuccess(AuditAction.ACTION_INDICATOR_USER_ASSIGNED, AuditEntityType.ACTION_INDICATOR, indicatorId, {
-            entityName: `${indicator.code} - User ${userId}`,
+            entityName: `${indicator.code} - ${userDisplayName}`,
             system: SYSTEM_NAME,
-            metadata: { indicatorId, userId },
+            metadata: { indicatorId, userId, userName: userDisplayName },
         });
 
         return saved;
     }
 
-    async unassign(indicatorId: string, userId: string) {
+    async unassign(indicatorId: string, userId: string, userName?: string) {
         const entity = await this.repo.findOne({ where: { indicatorId, userId } });
         if (!entity) {
             throw new NotFoundException({ message: "La asignación no existe", code: ErrorCodes.INDICATOR_USER_NOT_ASSIGNED });
         }
 
+        const indicator = await this.indicatorRepo.findOne({ where: { id: indicatorId } });
         await this.repo.remove(entity);
 
+        const userDisplayName = userName ?? `Usuario ${userId.substring(0, 8)}`;
         await this.auditLog.logSuccess(AuditAction.ACTION_INDICATOR_USER_UNASSIGNED, AuditEntityType.ACTION_INDICATOR, indicatorId, {
-            entityName: `Indicator ${indicatorId} - User ${userId}`,
+            entityName: `${indicator?.code ?? indicatorId} - ${userDisplayName}`,
             system: SYSTEM_NAME,
-            metadata: { indicatorId, userId },
+            metadata: { indicatorId, userId, userName: userDisplayName },
         });
     }
 

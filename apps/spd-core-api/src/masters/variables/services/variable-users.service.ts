@@ -28,7 +28,7 @@ export class VariableUsersService {
         return this.repo.find({ where: { variableId }, order: { createdAt: "DESC" } });
     }
 
-    async assign(variableId: string, userId: string) {
+    async assign(variableId: string, userId: string, userName?: string) {
         const variable = await this.variableRepo.findOne({ where: { id: variableId } });
         if (!variable) {
             throw new NotFoundException({ message: "Variable no encontrada", code: ErrorCodes.VARIABLE_NOT_FOUND });
@@ -42,27 +42,30 @@ export class VariableUsersService {
         const entity = this.repo.create({ variableId, userId });
         const saved = await this.repo.save(entity);
 
+        const userDisplayName = userName ?? `Usuario ${userId.substring(0, 8)}`;
         await this.auditLog.logSuccess(AuditAction.VARIABLE_USER_ASSIGNED, AuditEntityType.VARIABLE, variableId, {
-            entityName: `${variable.code} - User ${userId}`,
+            entityName: `${variable.code} - ${userDisplayName}`,
             system: SYSTEM_NAME,
-            metadata: { variableId, userId },
+            metadata: { variableId, userId, userName: userDisplayName },
         });
 
         return saved;
     }
 
-    async unassign(variableId: string, userId: string) {
+    async unassign(variableId: string, userId: string, userName?: string) {
         const entity = await this.repo.findOne({ where: { variableId, userId } });
         if (!entity) {
             throw new NotFoundException({ message: "La asignación no existe", code: ErrorCodes.VARIABLE_USER_NOT_ASSIGNED });
         }
 
+        const variable = await this.variableRepo.findOne({ where: { id: variableId } });
         await this.repo.remove(entity);
 
+        const userDisplayName = userName ?? `Usuario ${userId.substring(0, 8)}`;
         await this.auditLog.logSuccess(AuditAction.VARIABLE_USER_UNASSIGNED, AuditEntityType.VARIABLE, variableId, {
-            entityName: `Variable ${variableId} - User ${userId}`,
+            entityName: `${variable?.code ?? variableId} - ${userDisplayName}`,
             system: SYSTEM_NAME,
-            metadata: { variableId, userId },
+            metadata: { variableId, userId, userName: userDisplayName },
         });
     }
 

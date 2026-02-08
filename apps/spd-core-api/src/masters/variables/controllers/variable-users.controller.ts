@@ -19,7 +19,7 @@ export class VariableUsersController {
     @Post(":id/users")
     @RequirePermission("/masters/variables", "UPDATE")
     assignUser(@Param("id", ParseUUIDPipe) id: string, @Body() dto: AssignVariableUserDto) {
-        return this.service.assign(id, dto.userId);
+        return this.service.assign(id, dto.userId, dto.userName);
     }
 
     @Delete(":id/users/:userId")
