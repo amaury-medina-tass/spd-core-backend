@@ -11,11 +11,6 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.use(cookieParser());
 
-  app.enableCors({
-    origin: true,
-    credentials: true
-  });
-
   // valida DTOs
   app.useGlobalPipes(
     new ValidationPipe({

@@ -28,6 +28,31 @@
               "DefaultMessageTimeToLive": "PT1H",
               "MaxSizeInMegabytes": 1024
             }
+          },
+          {
+            "Name": "sicgem.events",
+            "Subscriptions": [
+              {
+                "Name": "sicgem-worker",
+                "Properties": {
+                  "MaxDeliveryCount": 10,
+                  "LockDuration": "PT1M",
+                  "DefaultMessageTimeToLive": "PT1H"
+                }
+              },
+              {
+                "Name": "sicgem-core-worker",
+                "Properties": {
+                  "MaxDeliveryCount": 10,
+                  "LockDuration": "PT1M",
+                  "DefaultMessageTimeToLive": "PT1H"
+                }
+              }
+            ],
+            "Properties": {
+              "DefaultMessageTimeToLive": "PT1H",
+              "MaxSizeInMegabytes": 1024
+            }
           }
         ],
         "Queues": []
