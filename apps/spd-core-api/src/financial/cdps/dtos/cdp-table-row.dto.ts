@@ -1,6 +1,7 @@
 /**
  * DTO para la fila de la tabla de CDPs
- * Contiene información consolidada de CDP con posiciones, proyectos, rubros, necesidades y fondos
+ * Cada fila representa una combinación única de CDP-Posición-Proyecto-Fondo
+ * Si una posición tiene múltiples fondos, habrá múltiples filas para esa posición
  */
 export class CdpTableRowDto {
     /** ID de la posición del CDP */

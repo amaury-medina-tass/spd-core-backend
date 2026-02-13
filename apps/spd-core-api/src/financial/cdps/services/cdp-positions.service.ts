@@ -50,7 +50,7 @@ export class CdpPositionsService {
 
     /**
      * Obtiene datos paginados para la tabla de CDPs del frontend
-     * CORREGIDO: Usa GROUP BY para evitar duplicados por múltiples actividades
+     * CORREGIDO: Cada combinación CDP-Posición-Fondo genera un registro separado
      */
     async findForTable(
         page: number = 1,
@@ -63,13 +63,13 @@ export class CdpPositionsService {
         const skip = (page - 1) * limit;
         const validSortOrder = sortOrder === "ASC" || sortOrder === "DESC" ? sortOrder : "DESC";
 
-        // Mapeo de campos de ordenamiento para manejar agregados
+        // Mapeo de campos de ordenamiento
         const sortMap: Record<string, string> = {
             "cdp.number": "cdp.number",
             "pos.positionNumber": "pos.position_number",
             "pos.value": "pos.value",
             "r.code": "r.code",
-            "p.code": "MAX(p.code)",
+            "p.code": "p.code",
             "n.code": "n.code"
         };
 
@@ -106,20 +106,22 @@ export class CdpPositionsService {
                 "r.code AS \"rubricCode\"",
                 "n.code AS \"needCode\"",
 
-                // AGREGACIONES PARA EVITAR DUPLICADOS
-                "MAX(p.code) AS \"projectCode\"",
-
-                // Si hay múltiples fuentes de financiación, las concatenamos
-                "STRING_AGG(DISTINCT fs.name, ', ') AS \"fundingSourceName\"",
-                "STRING_AGG(DISTINCT fs.code, ', ') AS \"fundingSourceCode\""
+                // Cada combinación de posición-proyecto-fondo será un registro separado
+                "p.code AS \"projectCode\"",
+                "fs.name AS \"fundingSourceName\"",
+                "fs.code AS \"fundingSourceCode\""
             ])
-            // AGRUPAMIENTO OBLIGATORIO PARA COLAPSAR FILAS REPETIDAS
+            // AGRUPAMIENTO: Cada combinación única de posición+proyecto+fondo será una fila
             .groupBy("pos.id")
             .addGroupBy("cdp.id")
             .addGroupBy("cdp.number")
             .addGroupBy("cdp.total_value")
             .addGroupBy("r.code")
-            .addGroupBy("n.code");
+            .addGroupBy("n.code")
+            .addGroupBy("p.code")
+            .addGroupBy("fs.id")
+            .addGroupBy("fs.name")
+            .addGroupBy("fs.code");
 
         // Búsqueda
         if (search) {

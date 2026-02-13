@@ -192,16 +192,30 @@ export class SapSyncService {
             });
             await runner.manager.save(cdp);
             this.logger.debug(`Creado CDP: ${cdpNum}`);
+        }
 
-            // Relación CDP - Proyecto
-            if (project) {
+        // Relación CDP - Proyecto (se crea independientemente si el CDP es nuevo o existente)
+        // Permite que un CDP tenga múltiples proyectos con diferentes fondos
+        if (cdp && project) {
+            const existingCdpProject = await runner.manager.findOne(CdpProject, {
+                where: { cdpId: cdp.id, projectId: project.id },
+            });
+
+            if (!existingCdpProject) {
+                // Usar el valor de la posición actual (valorPosicion) para el allocatedValue
+                // ya que representa la asignación específica para este proyecto/fondo
                 const cdpProject = runner.manager.create(CdpProject, {
                     cdpId: cdp.id,
                     projectId: project.id,
-                    allocatedValue: cdpValue,
+                    allocatedValue: posValue || cdpValue,
                 });
                 await runner.manager.save(cdpProject);
-                this.logger.debug(`Creada relación CdpProject: CDP ${cdpNum} - Proyecto ${projCode}`);
+                this.logger.debug(`Creada relación CdpProject: CDP ${cdpNum} - Proyecto ${projCode} (${posValue || cdpValue})`);
+            } else {
+                // Si ya existe, actualizar el valor para sumar las diferentes posiciones del mismo proyecto
+                existingCdpProject.allocatedValue = (existingCdpProject.allocatedValue || 0) + (posValue || 0);
+                await runner.manager.save(existingCdpProject);
+                this.logger.debug(`Actualizada relación CdpProject: CDP ${cdpNum} - Proyecto ${projCode} (total: ${existingCdpProject.allocatedValue})`);
             }
         }
 
