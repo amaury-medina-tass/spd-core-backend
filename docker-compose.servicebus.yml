@@ -46,4 +46,4 @@ networks:
     driver: bridge
   spd-local-network:
     name: spd-local-network
-    external: false
+    external: true

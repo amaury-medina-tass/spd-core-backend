@@ -22,6 +22,14 @@
                   "LockDuration": "PT1M",
                   "DefaultMessageTimeToLive": "PT1H"
                 }
+              },
+              {
+                "Name": "sicgem-core-worker",
+                "Properties": {
+                  "MaxDeliveryCount": 10,
+                  "LockDuration": "PT1M",
+                  "DefaultMessageTimeToLive": "PT1H"
+                }
               }
             ],
             "Properties": {
