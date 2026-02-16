@@ -16,6 +16,11 @@ lerna-debug.log*
 /coverage
 /.nyc_output
 
+# SonarQube
+.scannerwork/
+sonar_result.json
+sonar_components.json
+
 # IDEs and editors
 /.idea
 .project
