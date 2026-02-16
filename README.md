@@ -126,16 +126,6 @@ npm run start:worker:dev
 bun run start:worker:dev
 ```
 
-## Azure Service Bus
-
-El sistema utiliza Azure Service Bus para mensajería.
-
-- **Producción:** Configurar connection string de Azure.
-- **Local:** Se puede usar el emulador ejecutando:
-  ```powershell
-  docker compose -f docker-compose.servicebus.yml up -d
-  ```
-
 ## Scripts Disponibles
 
 | Script             | Descripción                 | Comando (npm / bun)                    |

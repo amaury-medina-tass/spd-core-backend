@@ -11,6 +11,7 @@ import { ContractCdpRelationsModule } from "./contract-cdp-relations/contract-cd
 import { FundingSourcesModule } from "./funding-sources/funding-sources.module";
 import { BudgetRecordsModule } from "./budget-records/budget-records.module";
 import { ContractPositionsModule } from "./contract-positions/contract-positions.module";
+import { DashboardModule } from "./dashboard/dashboard.module";
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { ContractPositionsModule } from "./contract-positions/contract-positions
     FundingSourcesModule,
     BudgetRecordsModule,
     ContractPositionsModule,
+    DashboardModule,
   ],
 })
 export class FinancialModule { }
