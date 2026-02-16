@@ -7,10 +7,10 @@ import type { OutboxEventEnvelope } from "@common/types/events";
 export class OutboxPublisher {
   private readonly logger = new Logger(OutboxPublisher.name);
 
-  private publisher: ServiceBusPublisher | null = null;
-  private subjectPrefix: string;
+  private readonly publisher: ServiceBusPublisher | null = null;
+  private readonly subjectPrefix: string;
 
-  constructor(private cfg: ConfigService) {
+  constructor(private readonly cfg: ConfigService) {
     const cs = this.cfg.get<string>("serviceBus.connectionString") ?? "";
     const topic = this.cfg.get<string>("serviceBus.topic") ?? "spd.events";
     this.subjectPrefix = this.cfg.get<string>("serviceBus.subjectPrefix") ?? "SpdCore.";

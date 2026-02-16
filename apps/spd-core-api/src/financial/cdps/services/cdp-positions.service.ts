@@ -15,13 +15,13 @@ import { SYSTEM_NAME } from "../../../shared/constants";
 export class CdpPositionsService {
     constructor(
         @InjectRepository(CdpPosition)
-        private repo: Repository<CdpPosition>,
+        private readonly repo: Repository<CdpPosition>,
         @InjectRepository(CdpPositionFunding)
-        private fundingRepo: Repository<CdpPositionFunding>,
+        private readonly fundingRepo: Repository<CdpPositionFunding>,
         @InjectRepository(DetailedActivity)
-        private detailedActivityRepo: Repository<DetailedActivity>,
+        private readonly detailedActivityRepo: Repository<DetailedActivity>,
         @InjectRepository(BudgetRecord)
-        private budgetRecordRepo: Repository<BudgetRecord>,
+        private readonly budgetRecordRepo: Repository<BudgetRecord>,
         private readonly auditLog: AuditLogService,
     ) { }
 
@@ -162,7 +162,7 @@ export class CdpPositionsService {
         }
 
         const countResult = await countQuery.getRawOne();
-        const total = countResult ? parseInt(countResult.count, 10) : 0;
+        const total = countResult ? Number.parseInt(countResult.count, 10) : 0;
 
         // Paginación y Ordenamiento
         queryBuilder
@@ -315,7 +315,7 @@ export class CdpPositionsService {
         }
 
         const activityCountResult = await activityCountQuery.getRawOne();
-        const activityTotal = activityCountResult ? parseInt(activityCountResult.count, 10) : 0;
+        const activityTotal = activityCountResult ? Number.parseInt(activityCountResult.count, 10) : 0;
 
         const consumedByActivityResult = await activityQuery
             .orderBy("da.code", "ASC")

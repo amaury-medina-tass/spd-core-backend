@@ -7,7 +7,7 @@ import { Dependency } from "../entities/dependency.entity";
 export class DependenciesService {
     constructor(
         @InjectRepository(Dependency)
-        private repo: Repository<Dependency>
+        private readonly repo: Repository<Dependency>
     ) { }
 
     async findOneByCode(code: string) {

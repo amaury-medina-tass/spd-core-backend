@@ -7,7 +7,7 @@ import { Contractor } from "../entities/contractor.entity";
 export class ContractorsService {
     constructor(
         @InjectRepository(Contractor)
-        private repo: Repository<Contractor>
+        private readonly repo: Repository<Contractor>
     ) { }
 
     async findAll(search?: string) {

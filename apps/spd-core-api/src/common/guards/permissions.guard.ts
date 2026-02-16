@@ -11,7 +11,7 @@ import type { PermissionMetadata } from "../decorators/require-permission.decora
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
+  constructor(private readonly reflector: Reflector) {}
 
   canActivate(ctx: ExecutionContext): boolean {
     const permission = this.reflector.getAllAndOverride<PermissionMetadata>(

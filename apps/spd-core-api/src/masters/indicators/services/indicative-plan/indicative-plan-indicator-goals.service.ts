@@ -7,8 +7,7 @@ import { ErrorCodes } from "@common/errors/error-codes";
 import { SYSTEM_NAME } from "../../../../shared/constants";
 import { IndicativePlanIndicatorGoal } from "../../entities/indicative-plan/indicative-plan-indicator-goal.entity";
 import { IndicativePlanIndicator } from "../../entities/indicative-plan/indicative-plan-indicator.entity";
-import { CreateIndicativePlanIndicatorGoalDto } from "../../dtos/indicative-plan/create-indicative-plan-indicator-goal.dto";
-import { UpdateIndicativePlanIndicatorGoalDto } from "../../dtos/indicative-plan/create-indicative-plan-indicator-goal.dto";
+import { CreateIndicativePlanIndicatorGoalDto, UpdateIndicativePlanIndicatorGoalDto } from "../../dtos/indicative-plan/create-indicative-plan-indicator-goal.dto";
 
 
 @Injectable()

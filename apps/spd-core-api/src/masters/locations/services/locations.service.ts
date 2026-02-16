@@ -27,9 +27,9 @@ export class LocationsService {
         return address
             .toUpperCase()
             .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "") // Elimina acentos
-            .replace(/[^\w\s#\-\.]/g, "") // Mantiene solo letras, números, #, -, .
-            .replace(/\s+/g, " ") // Reemplaza múltiples espacios por uno
+            .replaceAll(/[\u0300-\u036f]/g, "") // Elimina acentos
+            .replaceAll(/[^\w\s#\-.]/g, "") // Mantiene solo letras, números, #, -, .
+            .replaceAll(/\s+/g, " ") // Reemplaza múltiples espacios por uno
             .trim();
     }
 

@@ -21,9 +21,9 @@ export class Project {
     calculateFinancialExecution() {
         const current = Number(this.currentBudget || 0);
         const execution = Number(this.execution || 0);
-        this.financialExecutionPercentage = current !== 0
-            ? Math.round((execution / current) * 100) / 100
-            : 0;
+        this.financialExecutionPercentage = current === 0
+            ? 0
+            : Math.round((execution / current) * 100) / 100;
     }
 
     @Column({ type: "text", unique: true })

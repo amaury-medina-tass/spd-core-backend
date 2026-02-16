@@ -15,16 +15,16 @@ import { SYSTEM_NAME } from "../../../shared/constants";
 export class CdpFundingService {
     constructor(
         @InjectRepository(Cdp)
-        private cdpRepo: Repository<Cdp>,
+        private readonly cdpRepo: Repository<Cdp>,
         @InjectRepository(CdpPosition)
-        private positionRepo: Repository<CdpPosition>,
+        private readonly positionRepo: Repository<CdpPosition>,
         @InjectRepository(CdpPositionFunding)
-        private fundingRepo: Repository<CdpPositionFunding>,
+        private readonly fundingRepo: Repository<CdpPositionFunding>,
         @InjectRepository(CdpProject)
-        private cdpProjectRepo: Repository<CdpProject>,
+        private readonly cdpProjectRepo: Repository<CdpProject>,
         @InjectRepository(DetailedActivity)
-        private detailedActivityRepo: Repository<DetailedActivity>,
-        private dataSource: DataSource,
+        private readonly detailedActivityRepo: Repository<DetailedActivity>,
+        private readonly dataSource: DataSource,
         private readonly auditLog: AuditLogService,
     ) { }
 

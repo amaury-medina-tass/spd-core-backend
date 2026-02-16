@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Module, forwardRef } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { VariableAdvance } from "./entities/variable-advance.entity";
 import { VariableAdvanceCommune } from "./entities/variable-advance-commune.entity";
@@ -19,7 +19,6 @@ import { VariableContextualAccumulator } from "./entities/variable-contextual-ac
 import { AstEvaluatorService } from "./services/ast-evaluator.service";
 import { IndicatorsModule } from "../../masters/indicators/indicators.module";
 import { IndicatorAdvancesModule } from "../indicator-advances/indicator-advances.module";
-import { forwardRef } from "@nestjs/common";
 
 @Module({
     imports: [

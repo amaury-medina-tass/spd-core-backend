@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, Brackets, In } from "typeorm";
+import { Repository, Brackets } from "typeorm";
 import { MgaActivity } from "../entities/mga-activity.entity";
 import { MgaDetailedRelation } from "../entities/mga-detailed-relation.entity";
 import { CreateMgaActivityDto } from "../dtos/create-mga-activity.dto";
@@ -293,7 +293,7 @@ export class MgaActivitiesService {
         }
 
         const activityCountResult = await activityCountQuery.getRawOne();
-        const activityTotal = activityCountResult ? parseInt(activityCountResult.count, 10) : 0;
+        const activityTotal = activityCountResult ? Number.parseInt(activityCountResult.count, 10) : 0;
 
         const detailedActivitiesResult = await activityQuery
             .orderBy("da.code", "ASC")

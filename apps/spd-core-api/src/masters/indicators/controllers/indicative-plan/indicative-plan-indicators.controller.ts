@@ -34,7 +34,7 @@ export class IndicativePlanIndicatorsController {
         @Query("sortOrder") sortOrder?: "ASC" | "DESC"
     ) {
         // Ensure limit doesn't exceed 100
-        const safeLimit = limit > 100 ? 100 : limit;
+        const safeLimit = Math.min(limit, 100);
         return this.indicatorsService.findAllPaginated(
             page ? +page : 1,
             safeLimit ? +safeLimit : 10,

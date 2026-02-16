@@ -78,7 +78,7 @@ export class ServiceBusSubscriber implements OnModuleInit, OnModuleDestroy {
           `Processing SAP sync: ${payload.fechaInicio} - ${payload.fechaFin}`
         );
 
-        // TODO: Process via SapSyncService when ready
+        // Future improvement: integrate SapSyncService to process SAP items
         // await this.sapSyncService.processSapItems(...);
         
         this.logger.log(`SAP sync message processed`);

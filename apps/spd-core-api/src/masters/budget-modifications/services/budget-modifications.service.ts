@@ -16,7 +16,7 @@ export class BudgetModificationsService {
     constructor(
         @InjectRepository(BudgetModification)
         private readonly budgetModificationRepository: Repository<BudgetModification>,
-        private dataSource: DataSource,
+        private readonly dataSource: DataSource,
         private readonly auditLog: AuditLogService,
     ) { }
 
@@ -35,87 +35,7 @@ export class BudgetModificationsService {
                 throw new NotFoundException({ message: `Detailed Activity con id ${createDto.detailedActivityId} no encontrada`, code: ErrorCodes.DETAILED_ACTIVITY_NOT_FOUND });
             }
 
-            let savedModification: BudgetModification;
-
-            if (createDto.modificationType === ModificationType.ADDITION) {
-                if (!createDto.value) {
-                    throw new BadRequestException({ message: "El valor es requerido para ADICIONES", code: ErrorCodes.BUDGET_MODIFICATION_INVALID_VALUE });
-                }
-
-                const previousBalance = Number(detailedActivity.balance);
-                const previousRubricId = detailedActivity.rubricId;
-
-                detailedActivity.budgetCeiling = Number(detailedActivity.budgetCeiling) + createDto.value;
-                detailedActivity.balance = Number(detailedActivity.balance) + createDto.value;
-
-
-                const modification = this.budgetModificationRepository.create({
-                    ...createDto,
-                    value: createDto.value,
-                    previousBalance,
-                    newBalance: detailedActivity.balance,
-                    previousRubricId,
-                    newRubricId: previousRubricId
-                });
-                savedModification = await queryRunner.manager.save(modification);
-
-            } else if (createDto.modificationType === ModificationType.REDUCTION) {
-                if (!createDto.value) {
-                    throw new BadRequestException({ message: "El valor es requerido para REDUCCIONES", code: ErrorCodes.BUDGET_MODIFICATION_INVALID_VALUE });
-                }
-                if (Number(detailedActivity.balance) < createDto.value) {
-                    throw new BadRequestException({ message: "No se puede reducir un valor mayor al saldo disponible.", code: ErrorCodes.BUDGET_MODIFICATION_INSUFFICIENT_BALANCE });
-                }
-
-
-                const previousBalance = Number(detailedActivity.balance);
-                const previousRubricId = detailedActivity.rubricId;
-
-                detailedActivity.budgetCeiling = Number(detailedActivity.budgetCeiling) - createDto.value;
-                detailedActivity.balance = Number(detailedActivity.balance) - createDto.value;
-
-                const modification = this.budgetModificationRepository.create({
-                    ...createDto,
-                    value: createDto.value,
-                    previousBalance,
-                    newBalance: detailedActivity.balance,
-                    previousRubricId,
-                    newRubricId: previousRubricId
-                });
-                savedModification = await queryRunner.manager.save(modification);
-
-            } else if (
-                createDto.modificationType === ModificationType.TRANSFER ||
-                createDto.modificationType === ModificationType.RECLASSIFICATION
-            ) {
-
-                if (!createDto.newRubricId) {
-                    throw new BadRequestException({ message: "newRubricId es requerido para TRASLADOS o RECLASIFICACIONES", code: ErrorCodes.BUDGET_MODIFICATION_INVALID_VALUE });
-                }
-
-                if (createDto.newRubricId === detailedActivity.rubricId) {
-                    throw new BadRequestException({ message: "El nuevo rubro no puede ser igual al actual.", code: ErrorCodes.BUDGET_MODIFICATION_SAME_RUBRIC });
-                }
-
-                const previousBalance = Number(detailedActivity.balance);
-                const previousRubricId = detailedActivity.rubricId;
-
-
-                detailedActivity.rubricId = createDto.newRubricId;
-
-                const modification = this.budgetModificationRepository.create({
-                    ...createDto,
-                    value: 0,
-                    previousBalance,
-                    newBalance: previousBalance,
-                    previousRubricId,
-                    newRubricId: createDto.newRubricId
-                });
-                savedModification = await queryRunner.manager.save(modification);
-            } else {
-                // Should not happen if validation works, but for TS safety
-                throw new BadRequestException({ message: "Tipo de modificación no soportado", code: ErrorCodes.BUDGET_MODIFICATION_UNSUPPORTED_TYPE });
-            }
+            const savedModification = await this.applyModification(createDto, detailedActivity, queryRunner);
 
             await queryRunner.manager.save(detailedActivity);
             await queryRunner.commitTransaction();
@@ -138,6 +58,107 @@ export class BudgetModificationsService {
         } finally {
             await queryRunner.release();
         }
+    }
+
+    private async applyModification(
+        createDto: CreateBudgetModificationDto,
+        detailedActivity: DetailedActivity,
+        queryRunner: any
+    ): Promise<BudgetModification> {
+        switch (createDto.modificationType) {
+            case ModificationType.ADDITION:
+                return this.applyAddition(createDto, detailedActivity, queryRunner);
+            case ModificationType.REDUCTION:
+                return this.applyReduction(createDto, detailedActivity, queryRunner);
+            case ModificationType.TRANSFER:
+            case ModificationType.RECLASSIFICATION:
+                return this.applyTransferOrReclassification(createDto, detailedActivity, queryRunner);
+            default:
+                throw new BadRequestException({ message: "Tipo de modificación no soportado", code: ErrorCodes.BUDGET_MODIFICATION_UNSUPPORTED_TYPE });
+        }
+    }
+
+    private async applyAddition(
+        createDto: CreateBudgetModificationDto,
+        detailedActivity: DetailedActivity,
+        queryRunner: any
+    ): Promise<BudgetModification> {
+        if (!createDto.value) {
+            throw new BadRequestException({ message: "El valor es requerido para ADICIONES", code: ErrorCodes.BUDGET_MODIFICATION_INVALID_VALUE });
+        }
+
+        const previousBalance = Number(detailedActivity.balance);
+        const previousRubricId = detailedActivity.rubricId;
+
+        detailedActivity.budgetCeiling = Number(detailedActivity.budgetCeiling) + createDto.value;
+        detailedActivity.balance = Number(detailedActivity.balance) + createDto.value;
+
+        const modification = this.budgetModificationRepository.create({
+            ...createDto,
+            value: createDto.value,
+            previousBalance,
+            newBalance: detailedActivity.balance,
+            previousRubricId,
+            newRubricId: previousRubricId
+        });
+        return queryRunner.manager.save(modification);
+    }
+
+    private async applyReduction(
+        createDto: CreateBudgetModificationDto,
+        detailedActivity: DetailedActivity,
+        queryRunner: any
+    ): Promise<BudgetModification> {
+        if (!createDto.value) {
+            throw new BadRequestException({ message: "El valor es requerido para REDUCCIONES", code: ErrorCodes.BUDGET_MODIFICATION_INVALID_VALUE });
+        }
+        if (Number(detailedActivity.balance) < createDto.value) {
+            throw new BadRequestException({ message: "No se puede reducir un valor mayor al saldo disponible.", code: ErrorCodes.BUDGET_MODIFICATION_INSUFFICIENT_BALANCE });
+        }
+
+        const previousBalance = Number(detailedActivity.balance);
+        const previousRubricId = detailedActivity.rubricId;
+
+        detailedActivity.budgetCeiling = Number(detailedActivity.budgetCeiling) - createDto.value;
+        detailedActivity.balance = Number(detailedActivity.balance) - createDto.value;
+
+        const modification = this.budgetModificationRepository.create({
+            ...createDto,
+            value: createDto.value,
+            previousBalance,
+            newBalance: detailedActivity.balance,
+            previousRubricId,
+            newRubricId: previousRubricId
+        });
+        return queryRunner.manager.save(modification);
+    }
+
+    private async applyTransferOrReclassification(
+        createDto: CreateBudgetModificationDto,
+        detailedActivity: DetailedActivity,
+        queryRunner: any
+    ): Promise<BudgetModification> {
+        if (!createDto.newRubricId) {
+            throw new BadRequestException({ message: "newRubricId es requerido para TRASLADOS o RECLASIFICACIONES", code: ErrorCodes.BUDGET_MODIFICATION_INVALID_VALUE });
+        }
+        if (createDto.newRubricId === detailedActivity.rubricId) {
+            throw new BadRequestException({ message: "El nuevo rubro no puede ser igual al actual.", code: ErrorCodes.BUDGET_MODIFICATION_SAME_RUBRIC });
+        }
+
+        const previousBalance = Number(detailedActivity.balance);
+        const previousRubricId = detailedActivity.rubricId;
+
+        detailedActivity.rubricId = createDto.newRubricId;
+
+        const modification = this.budgetModificationRepository.create({
+            ...createDto,
+            value: 0,
+            previousBalance,
+            newBalance: previousBalance,
+            previousRubricId,
+            newRubricId: createDto.newRubricId
+        });
+        return queryRunner.manager.save(modification);
     }
 
     async findAllPaginated(

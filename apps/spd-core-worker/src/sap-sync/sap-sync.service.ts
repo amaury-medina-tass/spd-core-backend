@@ -18,11 +18,42 @@ import { ContractCdpRelation } from '../../../spd-core-api/src/financial/contrac
 import { ContractPosition } from '../../../spd-core-api/src/financial/contract-positions/entities/contract-position.entity';
 import { BudgetRecord } from '../../../spd-core-api/src/financial/budget-records/entities/budget-record.entity';
 
+interface ContractData {
+    number: string;
+    object: string;
+    value: number;
+    startDate?: Date;
+    endDate?: Date;
+    state: string;
+}
+
+interface ContractRelations {
+    contractor: Contractor | null;
+    need: Need | null;
+    cdp: Cdp | null;
+    cdpNum: string;
+}
+
+interface PositionData {
+    contract: MasterContract | null;
+    contractNum: string;
+    posNum: string;
+    posValue: number;
+}
+
+interface PositionRelations {
+    cdpPos: CdpPosition | null;
+    rubric: Rubric | null;
+    fund: FundingSource | null;
+    project: Project | null;
+    budgetRecord: BudgetRecord | null;
+}
+
 @Injectable()
 export class SapSyncService {
     private readonly logger = new Logger(SapSyncService.name);
 
-    constructor(private dataSource: DataSource) { }
+    constructor(private readonly dataSource: DataSource) { }
 
     /**
      * Procesa la lista de items SAP y sincroniza con la base de datos.
@@ -89,244 +120,274 @@ export class SapSyncService {
         const posNum = item.posicion?.toString() || '';
         const posValue = this.parseMoney(item.valorPosicion);
 
-        // ==========================================
-        // 1. MAESTROS (Get or Create)
-        // ==========================================
+        // 1. MAESTROS
+        const dependency = await this.findOrCreateDependency(runner, depCode, depName);
+        const contractor = await this.findOrCreateContractor(runner, contNit, contName, contEmail, contAddress, contPhone);
+        const fund = await this.findOrCreateFundingSource(runner, fundCode, fundName);
+        const rubric = await this.findOrCreateRubric(runner, rubricCode);
 
-        // Dependencia
-        let dependency = await runner.manager.findOne(Dependency, { where: { code: depCode } });
-        if (!dependency && depCode) {
-            dependency = runner.manager.create(Dependency, { code: depCode, name: depName || 'Sin nombre' });
-            await runner.manager.save(dependency);
-            this.logger.debug(`Creada Dependencia: ${depCode}`);
-        }
+        // 2. PLANEACIÓN
+        const project = await this.findOrCreateProject(runner, projCode, projName, dependency);
 
-        // Contratista
-        let contractor = await runner.manager.findOne(Contractor, { where: { nit: contNit } });
-        if (!contractor && contNit) {
-            contractor = runner.manager.create(Contractor, {
-                nit: contNit,
-                name: contName || 'Sin nombre',
-                email: contEmail,
-                address: contAddress,
-                phone: contPhone,
-            });
-            await runner.manager.save(contractor);
-            this.logger.debug(`Creado Contratista: ${contNit}`);
-        }
+        // 3. PRE-CONTRACTUAL
+        const prevStudy = await this.findOrCreatePreviousStudy(runner, psCode);
+        const need = await this.findOrCreateNeed(runner, needCode, needValue, prevStudy);
 
-        // Fuente de Financiación
-        let fund = await runner.manager.findOne(FundingSource, { where: { code: fundCode } });
-        if (!fund && fundCode) {
-            fund = runner.manager.create(FundingSource, { code: fundCode, name: fundName });
-            await runner.manager.save(fund);
-            this.logger.debug(`Creada FundingSource: ${fundCode}`);
-        }
+        // 4. CDP
+        const cdp = await this.findOrCreateCdp(runner, cdpNum, cdpValue);
+        await this.syncCdpProjectRelation(runner, cdp, project, cdpNum, projCode, posValue, cdpValue);
+        const cdpPos = await this.findOrCreateCdpPosition(runner, cdp, cdpNum, posNum, rubric, posValue);
 
-        // Rubro
-        let rubric = await runner.manager.findOne(Rubric, { where: { code: rubricCode } });
-        if (!rubric && rubricCode) {
-            rubric = runner.manager.create(Rubric, {
-                code: rubricCode,
-                level: 4,
-                type: 'Inversión',
-                description: 'Cargado desde SAP',
-            });
-            await runner.manager.save(rubric);
-            this.logger.debug(`Creado Rubric: ${rubricCode}`);
-        }
-
-        // ==========================================
-        // 2. PLANEACIÓN (Proyecto)
-        // ==========================================
-        let project = await runner.manager.findOne(Project, { where: { code: projCode } });
-        if (!project && projCode) {
-            project = runner.manager.create(Project, {
-                code: projCode,
-                name: projName,
-                origin: 'SAP',
-                state: true,
-                dependency: dependency ?? undefined,
-                initialBudget: 0,
-                currentBudget: 0,
-            });
-            await runner.manager.save(project);
-            this.logger.debug(`Creado Project: ${projCode}`);
-        }
-
-        // ==========================================
-        // 3. PRE-CONTRACTUAL (Estudios y Necesidad)
-        // ==========================================
-        let prevStudy = await runner.manager.findOne(PreviousStudy, { where: { code: psCode } });
-        if (!prevStudy && psCode) {
-            prevStudy = runner.manager.create(PreviousStudy, {
-                code: psCode,
-                status: 'Aprobado',
-            });
-            await runner.manager.save(prevStudy);
-            this.logger.debug(`Creado PreviousStudy: ${psCode}`);
-        }
-
-        let need = await runner.manager.findOne(Need, { where: { code: needCode } });
-        if (!need && needCode) {
-            need = runner.manager.create(Need, {
-                code: needCode,
-                amount: needValue,
-                description: 'Cargada desde SAP',
-                previousStudy: prevStudy ?? undefined,
-            });
-            await runner.manager.save(need);
-            this.logger.debug(`Creada Need: ${needCode}`);
-        }
-
-        // ==========================================
-        // 4. CDP (La Reserva)
-        // ==========================================
-        let cdp = await runner.manager.findOne(Cdp, { where: { number: cdpNum } });
-        if (!cdp && cdpNum) {
-            cdp = runner.manager.create(Cdp, {
-                number: cdpNum,
-                totalValue: cdpValue,
-                balance: 0,
-                dateIssue: new Date(),
-            });
-            await runner.manager.save(cdp);
-            this.logger.debug(`Creado CDP: ${cdpNum}`);
-        }
-
-        // Relación CDP - Proyecto (se crea independientemente si el CDP es nuevo o existente)
-        // Permite que un CDP tenga múltiples proyectos con diferentes fondos
-        if (cdp && project) {
-            const existingCdpProject = await runner.manager.findOne(CdpProject, {
-                where: { cdpId: cdp.id, projectId: project.id },
-            });
-
-            if (!existingCdpProject) {
-                // Usar el valor de la posición actual (valorPosicion) para el allocatedValue
-                // ya que representa la asignación específica para este proyecto/fondo
-                const cdpProject = runner.manager.create(CdpProject, {
-                    cdpId: cdp.id,
-                    projectId: project.id,
-                    allocatedValue: posValue || cdpValue,
-                });
-                await runner.manager.save(cdpProject);
-                this.logger.debug(`Creada relación CdpProject: CDP ${cdpNum} - Proyecto ${projCode} (${posValue || cdpValue})`);
-            } else {
-                // Si ya existe, actualizar el valor para sumar las diferentes posiciones del mismo proyecto
-                existingCdpProject.allocatedValue = (existingCdpProject.allocatedValue || 0) + (posValue || 0);
-                await runner.manager.save(existingCdpProject);
-                this.logger.debug(`Actualizada relación CdpProject: CDP ${cdpNum} - Proyecto ${projCode} (total: ${existingCdpProject.allocatedValue})`);
-            }
-        }
-
-        // Posición del CDP
-        let cdpPos: CdpPosition | null = null;
-        if (cdp && posNum) {
-            cdpPos = await runner.manager.findOne(CdpPosition, {
-                where: { cdpId: cdp.id, positionNumber: posNum },
-            });
-
-            if (!cdpPos) {
-                cdpPos = runner.manager.create(CdpPosition, {
-                    cdpId: cdp.id,
-                    positionNumber: posNum,
-                    rubricId: rubric?.id,
-                    value: posValue,
-                    balance: 0,
-                    observations: `Posición SAP ${posNum}`,
-                });
-                await runner.manager.save(cdpPos);
-                this.logger.debug(`Creada CdpPosition: CDP ${cdpNum} - Pos ${posNum}`);
-            }
-        }
-
-        // ==========================================
         // 5. CONTRATO
-        // ==========================================
-        let contract = await runner.manager.findOne(MasterContract, { where: { number: contractNum } });
-        if (!contract && contractNum) {
-            contract = runner.manager.create(MasterContract, {
-                number: contractNum,
-                object: contractObj,
-                totalValue: contractValue,
-                startDate: contractStartDate,
-                endDate: contractEndDate,
-                state: contractState || 'Legalizado',
-                contractor: contractor ?? undefined,
-                need: need ?? undefined,
-            });
-            await runner.manager.save(contract);
-            this.logger.debug(`Creado MasterContract: ${contractNum}`);
+        const contract = await this.syncMasterContract(
+            runner,
+            { number: contractNum, object: contractObj, value: contractValue, startDate: contractStartDate, endDate: contractEndDate, state: contractState },
+            { contractor, need, cdp, cdpNum }
+        );
 
-            // Relación Contrato - CDP
-            if (cdp) {
-                const existingRelation = await runner.manager.findOne(ContractCdpRelation, {
-                    where: { masterContract: { id: contract.id }, cdp: { id: cdp.id } },
-                });
+        // 6. REGISTRO PRESUPUESTAL
+        const budgetRecord = await this.syncBudgetRecord(runner, pedidoNum, contractValue, contract, cdp);
 
-                if (!existingRelation) {
-                    const contractCdp = runner.manager.create(ContractCdpRelation, {
-                        masterContract: contract,
-                        cdp: cdp,
-                    });
-                    await runner.manager.save(contractCdp);
-                    this.logger.debug(`Creada relación ContractCdpRelation: Contrato ${contractNum} - CDP ${cdpNum}`);
-                }
-            }
-        }
-
-        // ==========================================
-        // 6. REGISTRO PRESUPUESTAL (RP)
-        // ==========================================
-        let budgetRecord: BudgetRecord | null = null;
-        if (pedidoNum) {
-            budgetRecord = await runner.manager.findOne(BudgetRecord, { where: { number: pedidoNum } });
-            if (!budgetRecord) {
-                budgetRecord = runner.manager.create(BudgetRecord, {
-                    number: pedidoNum,
-                    totalValue: contractValue,
-                    balance: contractValue,
-                    contractId: contract?.id,
-                    cdpId: cdp?.id,
-                });
-                await runner.manager.save(budgetRecord);
-                this.logger.debug(`Creado BudgetRecord: ${pedidoNum}`);
-            } else {
-                budgetRecord.contractId = contract?.id;
-                budgetRecord.cdpId = cdp?.id;
-                budgetRecord.totalValue = contractValue;
-                await runner.manager.save(budgetRecord);
-            }
-        }
-
-        // ==========================================
         // 7. POSICIÓN DEL CONTRATO
-        // ==========================================
-        if (contract && posNum) {
-            let contractPos = await runner.manager.findOne(ContractPosition, {
-                where: { contractId: contract.id, positionNumber: posNum },
-            });
+        await this.syncContractPosition(
+            runner,
+            { contract, contractNum, posNum, posValue },
+            { cdpPos, rubric, fund, project, budgetRecord }
+        );
+    }
 
-            if (!contractPos) {
-                contractPos = runner.manager.create(ContractPosition, {
-                    contractId: contract.id,
-                    positionNumber: posNum,
-                    value: posValue,
-                    allocatedValue: posValue,
-                    description: `Carga SAP Pos ${posNum}`,
-                    cdpPositionId: cdpPos?.id,
-                    rubricId: rubric?.id,
-                    fundingSourceId: fund?.id,
-                    projectId: project?.id,
-                    budgetRecordId: budgetRecord?.id,
-                    // Campos huérfanos - se asignan manualmente después
-                    cdpFundingId: undefined,
-                    detailedActivityId: undefined,
-                });
-                await runner.manager.save(contractPos);
-                this.logger.debug(`Creada ContractPosition: Contrato ${contractNum} - Pos ${posNum}`);
-            }
+    // ==========================================
+    // ENTITY SYNC HELPERS
+    // ==========================================
+
+    private async findOrCreateDependency(runner: QueryRunner, code: string, name: string): Promise<Dependency | null> {
+        if (!code) return null;
+        const existing = await runner.manager.findOne(Dependency, { where: { code } });
+        if (existing) return existing;
+        const entity = runner.manager.create(Dependency, { code, name: name || 'Sin nombre' });
+        await runner.manager.save(entity);
+        this.logger.debug(`Creada Dependencia: ${code}`);
+        return entity;
+    }
+
+    private async findOrCreateContractor(
+        runner: QueryRunner, nit: string, name: string, email: string, address: string, phone: string
+    ): Promise<Contractor | null> {
+        if (!nit) return null;
+        const existing = await runner.manager.findOne(Contractor, { where: { nit } });
+        if (existing) return existing;
+        const entity = runner.manager.create(Contractor, {
+            nit, name: name || 'Sin nombre', email, address, phone,
+        });
+        await runner.manager.save(entity);
+        this.logger.debug(`Creado Contratista: ${nit}`);
+        return entity;
+    }
+
+    private async findOrCreateFundingSource(runner: QueryRunner, code: string, name: string): Promise<FundingSource | null> {
+        if (!code) return null;
+        const existing = await runner.manager.findOne(FundingSource, { where: { code } });
+        if (existing) return existing;
+        const entity = runner.manager.create(FundingSource, { code, name });
+        await runner.manager.save(entity);
+        this.logger.debug(`Creada FundingSource: ${code}`);
+        return entity;
+    }
+
+    private async findOrCreateRubric(runner: QueryRunner, code: string): Promise<Rubric | null> {
+        if (!code) return null;
+        const existing = await runner.manager.findOne(Rubric, { where: { code } });
+        if (existing) return existing;
+        const entity = runner.manager.create(Rubric, {
+            code, level: 4, type: 'Inversión', description: 'Cargado desde SAP',
+        });
+        await runner.manager.save(entity);
+        this.logger.debug(`Creado Rubric: ${code}`);
+        return entity;
+    }
+
+    private async findOrCreateProject(
+        runner: QueryRunner, code: string, name: string, dependency: Dependency | null
+    ): Promise<Project | null> {
+        if (!code) return null;
+        const existing = await runner.manager.findOne(Project, { where: { code } });
+        if (existing) return existing;
+        const entity = runner.manager.create(Project, {
+            code, name, origin: 'SAP', state: true,
+            dependency: dependency ?? undefined,
+            initialBudget: 0, currentBudget: 0,
+        });
+        await runner.manager.save(entity);
+        this.logger.debug(`Creado Project: ${code}`);
+        return entity;
+    }
+
+    private async findOrCreatePreviousStudy(runner: QueryRunner, code: string): Promise<PreviousStudy | null> {
+        if (!code) return null;
+        const existing = await runner.manager.findOne(PreviousStudy, { where: { code } });
+        if (existing) return existing;
+        const entity = runner.manager.create(PreviousStudy, { code, status: 'Aprobado' });
+        await runner.manager.save(entity);
+        this.logger.debug(`Creado PreviousStudy: ${code}`);
+        return entity;
+    }
+
+    private async findOrCreateNeed(
+        runner: QueryRunner, code: string, amount: number, prevStudy: PreviousStudy | null
+    ): Promise<Need | null> {
+        if (!code) return null;
+        const existing = await runner.manager.findOne(Need, { where: { code } });
+        if (existing) return existing;
+        const entity = runner.manager.create(Need, {
+            code, amount, description: 'Cargada desde SAP',
+            previousStudy: prevStudy ?? undefined,
+        });
+        await runner.manager.save(entity);
+        this.logger.debug(`Creada Need: ${code}`);
+        return entity;
+    }
+
+    private async findOrCreateCdp(runner: QueryRunner, cdpNumber: string, totalValue: number): Promise<Cdp | null> {
+        if (!cdpNumber) return null;
+        const existing = await runner.manager.findOne(Cdp, { where: { number: cdpNumber } });
+        if (existing) return existing;
+        const entity = runner.manager.create(Cdp, {
+            number: cdpNumber, totalValue, balance: 0, dateIssue: new Date(),
+        });
+        await runner.manager.save(entity);
+        this.logger.debug(`Creado CDP: ${cdpNumber}`);
+        return entity;
+    }
+
+    private async syncCdpProjectRelation(
+        runner: QueryRunner, cdp: Cdp | null, project: Project | null,
+        cdpNum: string, projCode: string, posValue: number, cdpValue: number
+    ): Promise<void> {
+        if (!cdp || !project) return;
+        const existing = await runner.manager.findOne(CdpProject, {
+            where: { cdpId: cdp.id, projectId: project.id },
+        });
+        if (existing) {
+            existing.allocatedValue = (existing.allocatedValue || 0) + (posValue || 0);
+            await runner.manager.save(existing);
+            this.logger.debug(`Actualizada relación CdpProject: CDP ${cdpNum} - Proyecto ${projCode} (total: ${existing.allocatedValue})`);
+            return;
         }
+        const cdpProject = runner.manager.create(CdpProject, {
+            cdpId: cdp.id, projectId: project.id,
+            allocatedValue: posValue || cdpValue,
+        });
+        await runner.manager.save(cdpProject);
+        this.logger.debug(`Creada relación CdpProject: CDP ${cdpNum} - Proyecto ${projCode} (${posValue || cdpValue})`);
+    }
+
+    private async findOrCreateCdpPosition(
+        runner: QueryRunner, cdp: Cdp | null, cdpNum: string, posNum: string,
+        rubric: Rubric | null, posValue: number
+    ): Promise<CdpPosition | null> {
+        if (!cdp || !posNum) return null;
+        const existing = await runner.manager.findOne(CdpPosition, {
+            where: { cdpId: cdp.id, positionNumber: posNum },
+        });
+        if (existing) return existing;
+        const entity = runner.manager.create(CdpPosition, {
+            cdpId: cdp.id, positionNumber: posNum, rubricId: rubric?.id,
+            value: posValue, balance: 0, observations: `Posición SAP ${posNum}`,
+        });
+        await runner.manager.save(entity);
+        this.logger.debug(`Creada CdpPosition: CDP ${cdpNum} - Pos ${posNum}`);
+        return entity;
+    }
+
+    private async syncMasterContract(
+        runner: QueryRunner,
+        contractData: ContractData,
+        relations: ContractRelations
+    ): Promise<MasterContract | null> {
+        const existing = await runner.manager.findOne(MasterContract, { where: { number: contractData.number } });
+        if (existing) return existing;
+        if (!contractData.number) return null;
+
+        const contract = runner.manager.create(MasterContract, {
+            number: contractData.number,
+            object: contractData.object,
+            totalValue: contractData.value,
+            startDate: contractData.startDate,
+            endDate: contractData.endDate,
+            state: contractData.state || 'Legalizado',
+            contractor: relations.contractor ?? undefined,
+            need: relations.need ?? undefined,
+        });
+        await runner.manager.save(contract);
+        this.logger.debug(`Creado MasterContract: ${contractData.number}`);
+        await this.syncContractCdpRelation(runner, contract, relations.cdp, contractData.number, relations.cdpNum);
+        return contract;
+    }
+
+    private async syncContractCdpRelation(
+        runner: QueryRunner, contract: MasterContract, cdp: Cdp | null,
+        contractNum: string, cdpNum: string
+    ): Promise<void> {
+        if (!cdp) return;
+        const existing = await runner.manager.findOne(ContractCdpRelation, {
+            where: { masterContract: { id: contract.id }, cdp: { id: cdp.id } },
+        });
+        if (existing) return;
+        const contractCdp = runner.manager.create(ContractCdpRelation, {
+            masterContract: contract, cdp,
+        });
+        await runner.manager.save(contractCdp);
+        this.logger.debug(`Creada relación ContractCdpRelation: Contrato ${contractNum} - CDP ${cdpNum}`);
+    }
+
+    private async syncBudgetRecord(
+        runner: QueryRunner, pedidoNum: string, contractValue: number,
+        contract: MasterContract | null, cdp: Cdp | null
+    ): Promise<BudgetRecord | null> {
+        if (!pedidoNum) return null;
+        const existing = await runner.manager.findOne(BudgetRecord, { where: { number: pedidoNum } });
+        if (existing) {
+            existing.contractId = contract?.id;
+            existing.cdpId = cdp?.id;
+            existing.totalValue = contractValue;
+            await runner.manager.save(existing);
+            return existing;
+        }
+        const entity = runner.manager.create(BudgetRecord, {
+            number: pedidoNum, totalValue: contractValue, balance: contractValue,
+            contractId: contract?.id, cdpId: cdp?.id,
+        });
+        await runner.manager.save(entity);
+        this.logger.debug(`Creado BudgetRecord: ${pedidoNum}`);
+        return entity;
+    }
+
+    private async syncContractPosition(
+        runner: QueryRunner,
+        positionData: PositionData,
+        relations: PositionRelations
+    ): Promise<void> {
+        if (!positionData.contract || !positionData.posNum) return;
+        const existing = await runner.manager.findOne(ContractPosition, {
+            where: { contractId: positionData.contract.id, positionNumber: positionData.posNum },
+        });
+        if (existing) return;
+        const entity = runner.manager.create(ContractPosition, {
+            contractId: positionData.contract.id,
+            positionNumber: positionData.posNum,
+            value: positionData.posValue,
+            allocatedValue: positionData.posValue,
+            description: `Carga SAP Pos ${positionData.posNum}`,
+            cdpPositionId: relations.cdpPos?.id,
+            rubricId: relations.rubric?.id,
+            fundingSourceId: relations.fund?.id,
+            projectId: relations.project?.id,
+            budgetRecordId: relations.budgetRecord?.id,
+            cdpFundingId: undefined,
+            detailedActivityId: undefined,
+        });
+        await runner.manager.save(entity);
+        this.logger.debug(`Creada ContractPosition: Contrato ${positionData.contractNum} - Pos ${positionData.posNum}`);
     }
 
     // ==========================================
@@ -336,16 +397,16 @@ export class SapSyncService {
     private parseMoney(value: string): number {
         if (!value) return 0;
         // SAP envía formato: "965000000.00 " => quitar espacios y parsear
-        const cleaned = value.trim().replace(/\s/g, '');
-        return parseFloat(cleaned) || 0;
+        const cleaned = value.trim().replaceAll(/\s/g, '');
+        return Number.parseFloat(cleaned) || 0;
     }
 
     private parseSapDate(dateStr: string): Date | undefined {
         // SAP envía formato YYYYMMDD (20250730)
-        if (!dateStr || dateStr.length !== 8) return undefined;
-        const year = parseInt(dateStr.substring(0, 4));
-        const month = parseInt(dateStr.substring(4, 6)) - 1;
-        const day = parseInt(dateStr.substring(6, 8));
+        if (dateStr?.length !== 8) return undefined;
+        const year = Number.parseInt(dateStr.substring(0, 4));
+        const month = Number.parseInt(dateStr.substring(4, 6)) - 1;
+        const day = Number.parseInt(dateStr.substring(6, 8));
         return new Date(year, month, day);
     }
 }

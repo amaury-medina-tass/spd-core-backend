@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Module, forwardRef } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { IndicativePlanIndicator } from "./entities/indicative-plan/indicative-plan-indicator.entity";
 import { IndicatorType } from "./entities/common/indicator-type.entity";
@@ -38,7 +38,6 @@ import { Formula } from "./entities/formula.entity";
 import { FormulasController } from "./controllers/formulas.controller";
 import { FormulasService } from "./services/formulas.service";
 import { VariableAdvancesModule } from "../../sub/variable-advances/variable-advances.module";
-import { forwardRef } from "@nestjs/common";
 import { IndicatorLocation } from "./entities/indicator-location.entity";
 import { IndicatorLocationsService } from "./services/indicator-locations.service";
 import { IndicativePlanIndicatorLocationsController } from "./controllers/indicative-plan/indicative-plan-indicator-locations.controller";

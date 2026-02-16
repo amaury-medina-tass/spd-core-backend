@@ -8,7 +8,7 @@ import { ErrorCodes } from "@common/errors/error-codes";
 export class NeedsService {
     constructor(
         @InjectRepository(Need)
-        private repo: Repository<Need>
+        private readonly repo: Repository<Need>
     ) { }
 
     async findAllPaginated(

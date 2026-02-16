@@ -114,11 +114,11 @@ export class VariableAdvancesController {
         @Query("year") year?: string,
         @Query("month") month?: string
     ) {
-        const parsedYear = year && year.toString().toLowerCase() === "all" ? undefined : (year ? Number(year) : undefined);
-        const parsedMonth = month && month.toString().toLowerCase() === "all" ? undefined : (month ? Number(month) : undefined);
+        const parsedYear = !year || year.toLowerCase() === "all" ? undefined : Number(year);
+        const parsedMonth = !month || month.toLowerCase() === "all" ? undefined : Number(month);
         
-        if (parsedYear && isNaN(parsedYear)) throw new BadRequestException("Invalid year");
-        if (parsedMonth && isNaN(parsedMonth)) throw new BadRequestException("Invalid month");
+        if (parsedYear && Number.isNaN(parsedYear)) throw new BadRequestException("Invalid year");
+        if (parsedMonth && Number.isNaN(parsedMonth)) throw new BadRequestException("Invalid month");
 
         return this.variableAdvancesService.getVariableDetails(id, parsedYear, parsedMonth);
     }

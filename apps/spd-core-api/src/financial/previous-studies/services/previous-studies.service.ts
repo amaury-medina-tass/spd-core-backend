@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, ILike } from "typeorm";
 import { PreviousStudy } from "../entities/previous-study.entity";
@@ -7,7 +7,7 @@ import { PreviousStudy } from "../entities/previous-study.entity";
 export class PreviousStudiesService {
     constructor(
         @InjectRepository(PreviousStudy)
-        private repo: Repository<PreviousStudy>
+        private readonly repo: Repository<PreviousStudy>
     ) { }
 
     async findAllPaginated(

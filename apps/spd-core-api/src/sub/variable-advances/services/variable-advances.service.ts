@@ -16,9 +16,7 @@ import { VariableActionRelation } from "../../../masters/indicators/entities/act
 import { VariableQuadrennium } from "../../../masters/variables/entities/variable-quadrennium.entity";
 import { Variable } from "../../../masters/variables/entities/variable.entity";
 import { VariableLocation } from "../../../masters/variables/entities/variable-location.entity";
-import { Location } from "../../../masters/locations/entities/location.entity";
-import { Commune } from "../../../masters/locations/entities/commune.entity";
-import { VariableLocationResponseDto, VariableAdvanceWithLocationDto, VariableAdvancesWithLocationsResponseDto } from "../dtos/variable-location-response.dto";
+import { VariableLocationResponseDto, VariableAdvancesWithLocationsResponseDto } from "../dtos/variable-location-response.dto";
 import { VariableAdvanceCommune } from "../entities/variable-advance-commune.entity";
 
 // Placeholder imports for Goal repositories - assuming generic approach or direct query
@@ -208,8 +206,6 @@ export class VariableAdvancesService {
                 .where("va.variableId IN (:...ids)", { ids: variables.map(v => v.variableId) })
                 .getRawMany();
 
-            const years = distinctYears.map(y => y.year);
-
             // Also include current year if not present? No, only where data exists matters usually.
 
             for (const v of variables) {
@@ -251,92 +247,79 @@ export class VariableAdvancesService {
     private async processFormula(formula: Formula, triggeringVariableId: string, manager: any, year?: number, month?: number | null) {
         this.logger.log(`Processing formula ${formula.id} for indicator (Ind: ${formula.indicativeIndicatorId} / Act: ${formula.actionIndicatorId})`);
         
-        let baseline: number | undefined;
-        if (formula.indicativeIndicatorId) {
-            const indicator = await manager.findOne(IndicativePlanIndicator, {
-                where: { id: formula.indicativeIndicatorId },
-                select: ["baseline"]
-            });
-            if (indicator?.baseline) {
-                baseline = parseFloat(indicator.baseline.replace(",", ".")); // Handle common decimal separator
-                if (isNaN(baseline)) baseline = 0;
-            }
-        }
+        const baseline = await this.fetchFormulaBaseline(formula, manager);
 
         // Prepare Context
         const context: EvaluationContext = {
             variableId: triggeringVariableId,
             baseline,
-            fetchAdvancesSum: async (varId: string, year: number | null, months: number[]) => {
-                // Fetch sum of advances
-                const qb = manager.createQueryBuilder(VariableAdvance, "va")
-                    .select("SUM(va.value)", "total")
-                    .where("va.variable_id = :varId", { varId });
-
-                if (year) {
-                    qb.andWhere("va.year = :year", { year });
-                }
-
-                if (months && months.length > 0) {
-                    qb.andWhere("va.month IN (:...months)", { months });
-                }
-
-                const res = await qb.getRawOne();
-                return parseFloat(res?.total || "0");
-            },
-            fetchIndicatorGoal: async (goalId) => {
-                // Try indicative goal first
-                const indGoal = await this.indicativeGoalRepository.findOne({ where: { id: goalId } });
-                if (indGoal) return Number(indGoal.value); // Assuming value field exists
-
-                // Try action goal
-                const actGoal = await this.actionGoalRepository.findOne({ where: { id: goalId } });
-                if (actGoal) return Number(actGoal.value);
-
-                return 0;
-            },
-            goalValues: {}, // To be populated if formula uses goal_var
+            fetchAdvancesSum: (varId, yr, months) => this.fetchAdvancesSum(manager, varId, yr, months),
+            fetchIndicatorGoal: (goalId) => this.fetchIndicatorGoalValue(goalId),
+            goalValues: {},
             subFormulaResults: {},
             year,
             month: month || undefined
         };
 
-        // Populate Goal Values (goal_var) if needed
-        // Optimization: finding all referenced goal_vars in formula AST
-        // For now, simpler approach: If the AST hits a goal_var, it expects it in ctx.goalValues.
-        // We can pre-fetch all goals for the triggering variable or referenced variables.
-        // Given complexity, let's just fetch ALL VariableGoals for the known variableId (if formula implies it)
-        // BUT formula might reference OTHER variables.
-        // The AST Evaluator handles `goal_var` by looking up in `goalValues`.
-        // If we want to support `goal_var`, we need to know WHICH variables are involved or fetch on demand.
-        // The current AstEvaluatorService implementation expects `goalValues` map.
-        // We really should change AstEvaluatorService to have a `fetchVariableGoal` delegate instead of a map.
-        // BUT I can't change it right now easily without refactoring.
-        // Let's pre-fetch goals for the *triggering* variable at least, assuming most formulas use that?
-        // Actually, the AST node `goal_var` has `value` = UUID of the VARIABLE GOAL. 
-        // So we can just fetch that distinct goal.
-        // I will modify AstEvaluatorService to maybe accept a fetcher if I could, but wait, I can just populate the map?
-        // No, I don't know the IDs beforehand without traversing AST.
-        // OK, I'll update AstEvaluatorService to allow on-demand fetching for goal_var too, or quickly traverse AST here.
-        // Or better: Update AstEvaluatorService to accept `fetchVariableGoal` delegate. This is cleaner.
-        // I'll stick to the current service definition I made? 
-        // "goalValues: Record<string, number>;" was in my service definition.
-        // I will modify the Service to be more flexible if possible.
-        // Actually I can't modify the service within this tool call.
-        // I'll handle it by blindly fetching goals referenced? 
-        // Re-reading AST Service: 
-        // `if (goalVarId && ctx.goalValues[goalVarId] !== undefined) ...`
-        // It requires the map.
-        // I will do a quick regex search on the AST string to find likely UUIDs for goal_var? 
-        // Or just `formula.ast` traverse.
-        // Let's do a simple traversal to collect goal IDs.
+        // Populate Goal and Quad Values
+        await this.populateGoalAndQuadValues(formula, context);
+
+        // Evaluate
+        const resultValue = await this.astEvaluator.evaluate(formula.ast, context);
+
+        // Save Main Indicator Advance Result
+        await this.saveIndicatorAdvanceResult(formula, year, month, resultValue, manager);
+
+        // Save Sub-Formula Results
+        await this.saveSubFormulaResults(formula, context, manager);
+    }
+
+    private async fetchFormulaBaseline(formula: Formula, manager: any): Promise<number | undefined> {
+        if (!formula.indicativeIndicatorId) return undefined;
+
+        const indicator = await manager.findOne(IndicativePlanIndicator, {
+            where: { id: formula.indicativeIndicatorId },
+            select: ["baseline"]
+        });
+        if (!indicator?.baseline) return undefined;
+
+        const parsed = Number.parseFloat(indicator.baseline.replace(",", "."));
+        return Number.isNaN(parsed) ? 0 : parsed;
+    }
+
+    private async fetchAdvancesSum(manager: any, varId: string, year: number | null, months: number[]): Promise<number> {
+        const qb = manager.createQueryBuilder(VariableAdvance, "va")
+            .select("SUM(va.value)", "total")
+            .where("va.variable_id = :varId", { varId });
+
+        if (year) {
+            qb.andWhere("va.year = :year", { year });
+        }
+        if (months && months.length > 0) {
+            qb.andWhere("va.month IN (:...months)", { months });
+        }
+
+        const res = await qb.getRawOne();
+        return Number.parseFloat(res?.total || "0");
+    }
+
+    private async fetchIndicatorGoalValue(goalId: string): Promise<number> {
+        const indGoal = await this.indicativeGoalRepository.findOne({ where: { id: goalId } });
+        if (indGoal) return Number(indGoal.value);
+
+        const actGoal = await this.actionGoalRepository.findOne({ where: { id: goalId } });
+        if (actGoal) return Number(actGoal.value);
+
+        return 0;
+    }
+
+    private async populateGoalAndQuadValues(formula: Formula, context: EvaluationContext): Promise<void> {
         const referencedGoalIds = this.extractGoalVarIds(formula.ast);
         if (referencedGoalIds.length > 0) {
             const goals = await this.variableGoalRepository.createQueryBuilder("vg")
                 .where("vg.id IN (:...ids)", { ids: referencedGoalIds })
                 .getMany();
             goals.forEach(g => {
-                context.goalValues[g.id] = Number(g.value);
                 context.goalValues[g.id] = Number(g.value);
             });
         }
@@ -347,73 +330,75 @@ export class VariableAdvancesService {
                 .where("vq.id IN (:...ids)", { ids: referencedQuadVarIds })
                 .getMany();
             quadrenniums.forEach(q => {
-                context.goalValues[q.id] = Number(q.value); // Reusing goalValues map for quad values too
+                context.goalValues[q.id] = Number(q.value);
             });
         }
+    }
 
-        // Evaluate
-        const resultValue = await this.astEvaluator.evaluate(formula.ast, context);
+    private async saveIndicatorAdvanceResult(
+        formula: Formula, year: number | undefined, month: number | null | undefined,
+        resultValue: number, manager: any
+    ): Promise<void> {
+        if (!year) return;
 
-        // Save Main Indicator Advance Result
-        if (year) {
-            const indicatorId = formula.indicativeIndicatorId || formula.actionIndicatorId;
-            const type = formula.indicativeIndicatorId ? 'indicative' : 'action';
+        const indicatorId = formula.indicativeIndicatorId || formula.actionIndicatorId;
+        const type = formula.indicativeIndicatorId ? 'indicative' : 'action';
 
-            if (indicatorId) {
-                await this.indicatorAdvancesService.createOrUpdate(
-                    indicatorId,
-                    type,
-                    year,
-                    month || null,
-                    resultValue,
-                    manager
-                );
-                this.logger.log(`Saved Indicator Advance: ${type} ${indicatorId} Year ${year} Month ${month} = ${resultValue}`);
-            }
-        }
+        if (!indicatorId) return;
 
-        // Save Results
-        // Iterate over ALL variables that had a sub-formula calculated in this context
-        // and update their contextual accumulators for this indicator.
+        await this.indicatorAdvancesService.createOrUpdate(
+            indicatorId, type, year, month || null, resultValue, manager
+        );
+        this.logger.log(`Saved Indicator Advance: ${type} ${indicatorId} Year ${year} Month ${month} = ${resultValue}`);
+    }
 
+    private async saveSubFormulaResults(formula: Formula, context: EvaluationContext, manager: any): Promise<void> {
         for (const [varId, calculatedValue] of Object.entries(context.subFormulaResults)) {
             if (calculatedValue === undefined) continue;
-
-            // Find Relation ID
-            let indicativeRelId: string | undefined;
-            let actionRelId: string | undefined;
-
-            if (formula.indicativeIndicatorId) {
-                const rel = await this.variableIndicativeRelationRepository.findOne({
-                    where: { variableId: varId, indicatorId: formula.indicativeIndicatorId }
-                });
-                indicativeRelId = rel?.id;
-            } else if (formula.actionIndicatorId) {
-                const rel = await this.variableActionRelationRepository.findOne({
-                    where: { variableId: varId, indicatorId: formula.actionIndicatorId }
-                });
-                actionRelId = rel?.id;
-            }
-
-            if (indicativeRelId || actionRelId) {
-                // Upsert Accumulator
-                const existing = await this.contextualAccumulatorRepository.findOne({
-                    where: indicativeRelId ? { indicativeRelationId: indicativeRelId } : { actionRelationId: actionRelId }
-                });
-
-                const acc = existing || this.contextualAccumulatorRepository.create({
-                    indicativeRelationId: indicativeRelId,
-                    actionRelationId: actionRelId
-                });
-
-                acc.calculatedValue = calculatedValue;
-
-                await manager.save(VariableContextualAccumulator, acc);
-                this.logger.log(`Updated contextual accumulator for var ${varId} in formula ${formula.id}: ${calculatedValue}`);
-            } else {
-                this.logger.warn(`Relation not found for variable ${varId} and indicator in formula ${formula.id}`);
-            }
+            await this.upsertContextualAccumulator(formula, varId, calculatedValue, manager);
         }
+    }
+
+    private async upsertContextualAccumulator(
+        formula: Formula, varId: string, calculatedValue: number, manager: any
+    ): Promise<void> {
+        const { indicativeRelId, actionRelId } = await this.findRelationIds(formula, varId);
+
+        if (!indicativeRelId && !actionRelId) {
+            this.logger.warn(`Relation not found for variable ${varId} and indicator in formula ${formula.id}`);
+            return;
+        }
+
+        const existing = await this.contextualAccumulatorRepository.findOne({
+            where: indicativeRelId ? { indicativeRelationId: indicativeRelId } : { actionRelationId: actionRelId }
+        });
+
+        const acc = existing || this.contextualAccumulatorRepository.create({
+            indicativeRelationId: indicativeRelId,
+            actionRelationId: actionRelId
+        });
+
+        acc.calculatedValue = calculatedValue;
+        await manager.save(VariableContextualAccumulator, acc);
+        this.logger.log(`Updated contextual accumulator for var ${varId} in formula ${formula.id}: ${calculatedValue}`);
+    }
+
+    private async findRelationIds(
+        formula: Formula, varId: string
+    ): Promise<{ indicativeRelId?: string; actionRelId?: string }> {
+        if (formula.indicativeIndicatorId) {
+            const rel = await this.variableIndicativeRelationRepository.findOne({
+                where: { variableId: varId, indicatorId: formula.indicativeIndicatorId }
+            });
+            return { indicativeRelId: rel?.id };
+        }
+        if (formula.actionIndicatorId) {
+            const rel = await this.variableActionRelationRepository.findOne({
+                where: { variableId: varId, indicatorId: formula.actionIndicatorId }
+            });
+            return { actionRelId: rel?.id };
+        }
+        return {};
     }
 
     private extractGoalVarIds(node: any): string[] {
@@ -692,7 +677,7 @@ export class VariableAdvancesService {
                 variableId: data.v_id,
                 variableName: data.v_name,
                 variableCode: data.v_code,
-                calculatedValue: data.vca_calculated_value ? parseFloat(data.vca_calculated_value) : null,
+                calculatedValue: data.vca_calculated_value ? Number.parseFloat(data.vca_calculated_value) : null,
                 lastCalculationDate: data.vca_last_calculation_date,
                 actionRelationId: data.var_id,
                 advances: variableAdvances
@@ -781,7 +766,7 @@ export class VariableAdvancesService {
                 variableId: data.v_id,
                 variableName: data.v_name,
                 variableCode: data.v_code,
-                calculatedValue: data.vca_calculated_value ? parseFloat(data.vca_calculated_value) : null,
+                calculatedValue: data.vca_calculated_value ? Number.parseFloat(data.vca_calculated_value) : null,
                 lastCalculationDate: data.vca_last_calculation_date,
                 indicativeRelationId: data.vir_id,
                 advances: variableAdvances
@@ -826,8 +811,8 @@ export class VariableAdvancesService {
             communeCode: vl.location.commune.code,
             communeName: vl.location.commune.name,
             address: vl.location.address,
-            latitude: vl.location.latitude ? parseFloat(vl.location.latitude.toString()) : undefined,
-            longitude: vl.location.longitude ? parseFloat(vl.location.longitude.toString()) : undefined,
+            latitude: vl.location.latitude ? Number.parseFloat(vl.location.latitude.toString()) : undefined,
+            longitude: vl.location.longitude ? Number.parseFloat(vl.location.longitude.toString()) : undefined,
         }));
 
         return {

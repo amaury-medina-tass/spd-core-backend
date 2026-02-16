@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Not, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { OutboxMessage } from '@common/entities/outbox-message.entity';
 import { OutboxPublisher } from './outbox.publisher';
 
@@ -17,8 +17,8 @@ export class OutboxProcessor {
 
   constructor(
     @InjectRepository(OutboxMessage)
-    private outbox: Repository<OutboxMessage>,
-    private publisher: OutboxPublisher,
+    private readonly outbox: Repository<OutboxMessage>,
+    private readonly publisher: OutboxPublisher,
   ) {}
 
   /**

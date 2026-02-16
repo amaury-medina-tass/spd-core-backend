@@ -14,8 +14,8 @@ import { SYSTEM_NAME } from "../../../shared/constants";
 export class PoaiPpaService {
     constructor(
         @InjectRepository(PoaiPpa)
-        private repo: Repository<PoaiPpa>,
-        private projectsService: ProjectsService,
+        private readonly repo: Repository<PoaiPpa>,
+        private readonly projectsService: ProjectsService,
         private readonly auditLog: AuditLogService,
     ) { }
 
@@ -407,7 +407,7 @@ export class PoaiPpaService {
             meta: {
                 totalYears: data.length,
                 yearRange: data.length > 0
-                    ? { start: data[0].year, end: data[data.length - 1].year }
+                    ? { start: data[0].year, end: data.at(-1)!.year }
                     : null
             }
         };

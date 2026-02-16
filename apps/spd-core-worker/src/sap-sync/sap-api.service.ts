@@ -56,7 +56,7 @@ export class SapApiService {
   private readonly sapUrl: string;
   private readonly sapAuth: string;
 
-  constructor(private cfg: ConfigService) {
+  constructor(private readonly cfg: ConfigService) {
     this.sapUrl = this.cfg.get<string>("sap.url") ?? "";
     this.sapAuth = this.cfg.get<string>("sap.auth") ?? "";
 
@@ -81,37 +81,7 @@ export class SapApiService {
       `Consultando SAP [MOCK]: ${fechaInicio} - ${fechaFin} (Secretaría: ${codSecretaria})`
     );
 
-    // --- LOGICA ORIGINAL COMENTADA PARA PRUEBAS SIN VPN ---
-    /*
-    const soapBody = `<?xml version="1.0" encoding="utf-8"?>
-<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:med="urn://medellin.gov.co:SICGEM:ConsultaContratos">
-    <soapenv:Header/>
-    <soapenv:Body>
-        <med:MT_Request_Req>
-            <COD_SECRETARIA>${codSecretaria}</COD_SECRETARIA>
-            <FECHA_INICIAL>${fechaInicio}</FECHA_INICIAL>
-            <FECHA_FINAL>${fechaFin}</FECHA_FINAL>
-        </med:MT_Request_Req>
-    </soapenv:Body>
-</soapenv:Envelope>`;
-
-    const response = await fetch(this.sapUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "text/xml",
-        Authorization: this.sapAuth,
-      },
-      body: soapBody,
-    });
-
-    if (!response.ok) {
-      throw new Error(`SAP API error: ${response.status} ${response.statusText}`);
-    }
-
-    const xmlText = await response.text();
-    */
-
-    // --- USA MOCK ---
+    // Using mock data for testing without VPN
     const xmlText = MOCK_SAP_XML;
 
     this.logger.debug(`SAP Response XML (truncated): ${xmlText.substring(0, 500)}...`);
@@ -216,7 +186,7 @@ export class SapApiService {
     }
 
     // SAP puede devolver DD.MM.YYYY o DD-MM-YYYY
-    const parts = dateStr.split(/[.\-\/]/);
+    const parts = dateStr.split(/[.\-/]/);
     if (parts.length !== 3) return dateStr;
 
     const [day, month, year] = parts;

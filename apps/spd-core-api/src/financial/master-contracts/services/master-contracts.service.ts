@@ -8,7 +8,7 @@ import { ErrorCodes } from "@common/errors/error-codes";
 export class MasterContractsService {
     constructor(
         @InjectRepository(MasterContract)
-        private repo: Repository<MasterContract>
+        private readonly repo: Repository<MasterContract>
     ) { }
 
     async findAllPaginated(

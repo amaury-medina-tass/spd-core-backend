@@ -18,19 +18,19 @@ import { BudgetModification, ModificationType } from "../../../masters/budget-mo
 @Injectable()
 export class DashboardService {
     constructor(
-        @InjectRepository(Need) private needRepo: Repository<Need>,
-        @InjectRepository(Cdp) private cdpRepo: Repository<Cdp>,
-        @InjectRepository(CdpPosition) private cdpPositionRepo: Repository<CdpPosition>,
-        @InjectRepository(CdpPositionFunding) private cdpFundingRepo: Repository<CdpPositionFunding>,
-        @InjectRepository(CdpProject) private cdpProjectRepo: Repository<CdpProject>,
-        @InjectRepository(MasterContract) private masterContractRepo: Repository<MasterContract>,
-        @InjectRepository(ContractCdpRelation) private contractCdpRepo: Repository<ContractCdpRelation>,
-        @InjectRepository(BudgetRecord) private budgetRecordRepo: Repository<BudgetRecord>,
-        @InjectRepository(Project) private projectRepo: Repository<Project>,
-        @InjectRepository(DetailedActivity) private detailedActivityRepo: Repository<DetailedActivity>,
-        @InjectRepository(MgaActivity) private mgaActivityRepo: Repository<MgaActivity>,
-        @InjectRepository(MgaDetailedRelation) private mgaDetailedRelRepo: Repository<MgaDetailedRelation>,
-        @InjectRepository(BudgetModification) private budgetModRepo: Repository<BudgetModification>,
+        @InjectRepository(Need) private readonly needRepo: Repository<Need>,
+        @InjectRepository(Cdp) private readonly cdpRepo: Repository<Cdp>,
+        @InjectRepository(CdpPosition) private readonly cdpPositionRepo: Repository<CdpPosition>,
+        @InjectRepository(CdpPositionFunding) private readonly cdpFundingRepo: Repository<CdpPositionFunding>,
+        @InjectRepository(CdpProject) private readonly cdpProjectRepo: Repository<CdpProject>,
+        @InjectRepository(MasterContract) private readonly masterContractRepo: Repository<MasterContract>,
+        @InjectRepository(ContractCdpRelation) private readonly contractCdpRepo: Repository<ContractCdpRelation>,
+        @InjectRepository(BudgetRecord) private readonly budgetRecordRepo: Repository<BudgetRecord>,
+        @InjectRepository(Project) private readonly projectRepo: Repository<Project>,
+        @InjectRepository(DetailedActivity) private readonly detailedActivityRepo: Repository<DetailedActivity>,
+        @InjectRepository(MgaActivity) private readonly mgaActivityRepo: Repository<MgaActivity>,
+        @InjectRepository(MgaDetailedRelation) private readonly mgaDetailedRelRepo: Repository<MgaDetailedRelation>,
+        @InjectRepository(BudgetModification) private readonly budgetModRepo: Repository<BudgetModification>,
     ) {}
 
     // ─── 1. GLOBAL DATA (KPIs) ───────────────────────────────
@@ -190,9 +190,9 @@ export class DashboardService {
             assignedValue: Number(r.assignedValue),
             fundingBalance: Number(r.fundingBalance),
             percentage:
-                Number(r.budgetCeiling) !== 0
-                    ? Math.round((Number(r.assignedValue) / Number(r.budgetCeiling)) * 10000) / 100
-                    : 0,
+                Number(r.budgetCeiling) === 0
+                    ? 0
+                    : Math.round((Number(r.assignedValue) / Number(r.budgetCeiling)) * 10000) / 100,
         }));
     }
 
@@ -252,9 +252,9 @@ export class DashboardService {
             totalValue: Number(r.totalValue),
             balance: Number(r.balance),
             percentage:
-                Number(r.totalValue) !== 0
-                    ? Math.round(((Number(r.totalValue) - Number(r.balance)) / Number(r.totalValue)) * 10000) / 100
-                    : 0,
+                Number(r.totalValue) === 0
+                    ? 0
+                    : Math.round(((Number(r.totalValue) - Number(r.balance)) / Number(r.totalValue)) * 10000) / 100,
         }));
     }
 
@@ -286,9 +286,9 @@ export class DashboardService {
             dependencyName: r.dependencyName,
             available: Number(r.currentBudget) - Number(r.execution),
             executionPercentage:
-                Number(r.currentBudget) !== 0
-                    ? Math.round((Number(r.execution) / Number(r.currentBudget)) * 10000) / 100
-                    : 0,
+                Number(r.currentBudget) === 0
+                    ? 0
+                    : Math.round((Number(r.execution) / Number(r.currentBudget)) * 10000) / 100,
         }));
     }
 
@@ -360,9 +360,9 @@ export class DashboardService {
                 execution: Number(r.execution),
                 dependencyName: r.dependencyName,
                 executionPercentage:
-                    Number(r.currentBudget) !== 0
-                        ? Math.round((Number(r.execution) / Number(r.currentBudget)) * 10000) / 100
-                        : 0,
+                    Number(r.currentBudget) === 0
+                        ? 0
+                        : Math.round((Number(r.execution) / Number(r.currentBudget)) * 10000) / 100,
                 mgaActivitiesCount: Number(r.mgaCount),
             })),
             meta: { total, page, limit, totalPages, hasNextPage: page < totalPages, hasPreviousPage: page > 1 },
@@ -401,9 +401,9 @@ export class DashboardService {
             totalBalance: Number(r.totalBalance),
             executedValue: Number(r.totalValue) - Number(r.totalBalance),
             executionPercentage:
-                Number(r.totalValue) !== 0
-                    ? Math.round(((Number(r.totalValue) - Number(r.totalBalance)) / Number(r.totalValue)) * 10000) / 100
-                    : 0,
+                Number(r.totalValue) === 0
+                    ? 0
+                    : Math.round(((Number(r.totalValue) - Number(r.totalBalance)) / Number(r.totalValue)) * 10000) / 100,
             detailedActivitiesCount: Number(r.detailedCount),
         }));
     }
@@ -422,7 +422,8 @@ export class DashboardService {
                 "da.budget_ceiling AS \"budgetCeiling\"",
                 "da.balance AS \"balance\"",
                 "p.code AS \"projectCode\"",
-                `(SELECT COUNT(*) FROM cdp_position_funding cpf WHERE cpf.detailed_activity_id = da.id) AS \"cdpCount\"`,
+                `(SELECT COUNT(*) FROM cdp_position_funding cpf WHERE cpf.detailed_activity_id = da.id) AS "cdpCount"`,
+
             ])
             .getRawMany();
 
@@ -434,9 +435,9 @@ export class DashboardService {
             balance: Number(r.balance),
             executedValue: Number(r.budgetCeiling) - Number(r.balance),
             executionPercentage:
-                Number(r.budgetCeiling) !== 0
-                    ? Math.round(((Number(r.budgetCeiling) - Number(r.balance)) / Number(r.budgetCeiling)) * 10000) / 100
-                    : 0,
+                Number(r.budgetCeiling) === 0
+                    ? 0
+                    : Math.round(((Number(r.budgetCeiling) - Number(r.balance)) / Number(r.budgetCeiling)) * 10000) / 100,
             projectCode: r.projectCode,
             cdpCount: Number(r.cdpCount),
         }));

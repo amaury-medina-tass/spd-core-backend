@@ -1,7 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, ParseUUIDPipe, UseGuards } from "@nestjs/common";
 import { IndicativePlanIndicatorQuadrenniumsService } from "../../services/indicative-plan/indicative-plan-indicator-quadrenniums.service";
-import { CreateIndicativePlanIndicatorQuadrenniumDto } from "../../dtos/indicative-plan/create-indicative-plan-indicator-quadrennium.dto";
-import { UpdateIndicativePlanIndicatorQuadrenniumDto } from "../../dtos/indicative-plan/create-indicative-plan-indicator-quadrennium.dto";
+import { CreateIndicativePlanIndicatorQuadrenniumDto, UpdateIndicativePlanIndicatorQuadrenniumDto } from "../../dtos/indicative-plan/create-indicative-plan-indicator-quadrennium.dto";
 import { JwtAuthGuard } from "../../../../auth/guards/jwt-auth.guard";
 import { PermissionsGuard } from "../../../../common/guards/permissions.guard";
 import { RequirePermission } from "../../../../common/decorators/require-permission.decorator";

@@ -12,7 +12,7 @@ import { SYSTEM_NAME } from "../../../shared/constants";
 export class FundingSourcesService {
     constructor(
         @InjectRepository(FundingSource)
-        private repo: Repository<FundingSource>,
+        private readonly repo: Repository<FundingSource>,
         private readonly auditLog: AuditLogService,
     ) { }
 

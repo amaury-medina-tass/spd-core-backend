@@ -31,10 +31,10 @@ export class VariableIndicativeRelationsController {
     @RequirePermission("/masters/indicators", "READ")
     find(
         @Param("id", ParseUUIDPipe) id: string,
-        @Query("type") type: "associated" | "available" | "all" = "all",
         @Query("page") page: number,
         @Query("limit") limit: number,
-        @Query("search") search: string
+        @Query("search") search: string,
+        @Query("type") type: "associated" | "available" | "all" = "all"
     ) {
         return this.relationsService.findPaginated(
             id,

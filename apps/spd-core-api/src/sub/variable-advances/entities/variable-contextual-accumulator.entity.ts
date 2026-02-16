@@ -1,13 +1,11 @@
 import {
     Column,
-    CreateDateColumn,
     Entity,
     JoinColumn,
     ManyToOne,
     PrimaryGeneratedColumn,
     UpdateDateColumn,
     Check,
-    Index,
 } from "typeorm";
 import { VariableIndicativeRelation } from "../../../masters/indicators/entities/indicative-plan/variable-indicative-relation.entity";
 import { VariableActionRelation } from "../../../masters/indicators/entities/action-plan/variable-action-relation.entity";

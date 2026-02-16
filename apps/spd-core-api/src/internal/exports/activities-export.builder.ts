@@ -6,7 +6,7 @@ import { DetailedActivitiesService } from "../../masters/detailed-activities/ser
 import { ProductsService } from "../../masters/products/services/products.service";
 import { ProjectsService } from "../../financial/projects/services/projects.service";
 import { MgaDetailedRelation } from "../../masters/mga-activities/entities/mga-detailed-relation.entity";
-import { ExportResult, ExportSheet } from "./export.types";
+import { ExportResult } from "./export.types";
 
 @Injectable()
 export class ActivitiesExportBuilder {

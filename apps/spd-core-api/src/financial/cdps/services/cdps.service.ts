@@ -8,7 +8,7 @@ import { ErrorCodes } from "@common/errors/error-codes";
 export class CdpsService {
     constructor(
         @InjectRepository(Cdp)
-        private repo: Repository<Cdp>,
+        private readonly repo: Repository<Cdp>,
     ) { }
 
     async findAllPaginated(

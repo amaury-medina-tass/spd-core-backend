@@ -1,7 +1,7 @@
 import { Module, Global, DynamicModule } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { CosmosClient, Database } from "@azure/cosmos";
-import * as https from "https";
+import * as https from "node:https";
 import { AuditLogService, COSMOS_DATABASE, COSMOS_CONTAINER_NAME } from "./audit-log.service";
 
 @Global()

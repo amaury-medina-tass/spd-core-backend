@@ -49,8 +49,8 @@ export class ActionPlanIndicatorLocationsController {
     ) {
         return this.indicatorLocationsService.findActionIndicatorsByCommuneCode(
             communeCode,
-            parseInt(page, 10) || 1,
-            parseInt(limit, 10) || 10,
+            Number.parseInt(page, 10) || 1,
+            Number.parseInt(limit, 10) || 10,
             search
         );
     }
@@ -68,8 +68,8 @@ export class ActionPlanIndicatorLocationsController {
     ) {
         return this.indicatorLocationsService.findVariablesByActionIndicatorLocation(
             indicatorId,
-            parseInt(page, 10) || 1,
-            parseInt(limit, 10) || 10,
+            Number.parseInt(page, 10) || 1,
+            Number.parseInt(limit, 10) || 10,
             search
         );
     }

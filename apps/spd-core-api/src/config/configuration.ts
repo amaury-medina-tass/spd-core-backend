@@ -1,4 +1,4 @@
-export default () => ({
+const configuration = () => ({
   env: process.env.NODE_ENV ?? "development",
   port: Number(process.env.PORT ?? 3003),
 
@@ -33,3 +33,5 @@ export default () => ({
 
   systemName: process.env.SYSTEM_NAME,
 });
+
+export default configuration;

@@ -1,0 +1,6 @@
+projectKey=spd-core-backend
+serverUrl=http://localhost:9000
+serverVersion=26.2.0.119303
+dashboardUrl=http://localhost:9000/dashboard?id=spd-core-backend
+ceTaskId=3dae33d9-762d-4f66-8d55-a1f6bf8a00c6
+ceTaskUrl=http://localhost:9000/api/ce/task?id=3dae33d9-762d-4f66-8d55-a1f6bf8a00c6

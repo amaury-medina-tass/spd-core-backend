@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Brackets, In, Repository } from "typeorm";
+import { Brackets, Repository } from "typeorm";
 import { IndicativePlanIndicator } from "../../masters/indicators/entities/indicative-plan/indicative-plan-indicator.entity";
 import { ActionPlanIndicator } from "../../masters/indicators/entities/action-plan/action-plan-indicator.entity";
 import { IndicativeIndicatorUser } from "../../masters/indicators/entities/indicative-plan/indicative-indicator-user.entity";

@@ -1,7 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, ParseUUIDPipe, Query, UseGuards } from "@nestjs/common";
 import { IndicativePlanIndicatorGoalsService } from "../../services/indicative-plan/indicative-plan-indicator-goals.service";
-import { CreateIndicativePlanIndicatorGoalDto } from "../../dtos/indicative-plan/create-indicative-plan-indicator-goal.dto";
-import { UpdateIndicativePlanIndicatorGoalDto } from "../../dtos/indicative-plan/create-indicative-plan-indicator-goal.dto";
+import { CreateIndicativePlanIndicatorGoalDto, UpdateIndicativePlanIndicatorGoalDto } from "../../dtos/indicative-plan/create-indicative-plan-indicator-goal.dto";
 import { JwtAuthGuard } from "../../../../auth/guards/jwt-auth.guard";
 import { PermissionsGuard } from "../../../../common/guards/permissions.guard";
 import { RequirePermission } from "../../../../common/decorators/require-permission.decorator";

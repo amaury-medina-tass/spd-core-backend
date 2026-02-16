@@ -7,8 +7,7 @@ import { ErrorCodes } from "@common/errors/error-codes";
 import { SYSTEM_NAME } from "../../../../shared/constants";
 import { IndicativePlanIndicatorQuadrennium } from "../../entities/indicative-plan/indicative-plan-indicator-quadrennium.entity";
 import { IndicativePlanIndicator } from "../../entities/indicative-plan/indicative-plan-indicator.entity";
-import { CreateIndicativePlanIndicatorQuadrenniumDto } from "../../dtos/indicative-plan/create-indicative-plan-indicator-quadrennium.dto";
-import { UpdateIndicativePlanIndicatorQuadrenniumDto } from "../../dtos/indicative-plan/create-indicative-plan-indicator-quadrennium.dto";
+import { CreateIndicativePlanIndicatorQuadrenniumDto, UpdateIndicativePlanIndicatorQuadrenniumDto } from "../../dtos/indicative-plan/create-indicative-plan-indicator-quadrennium.dto";
 
 @Injectable()
 export class IndicativePlanIndicatorQuadrenniumsService {

@@ -28,129 +28,101 @@ export class AstEvaluatorService {
         }
 
         this._depth++;
-        const kind = node.kind;
-        let result = 0;
-
-        switch (kind) {
-            case "const":
-                result = Number(node.value) || 0;
-                this.log(`CONST: ${result}`);
-                break;
-
-            case "baseline":
-                result = ctx.baseline || 0;
-                this.log(`BASELINE: ${result}`);
-                break;
-
-            case "goal_var":
-                const goalVarId = node.value;
-                if (goalVarId && ctx.goalValues[goalVarId] !== undefined) {
-                    result = ctx.goalValues[goalVarId];
-                    this.log(`GOAL_VAR [${goalVarId}]: ${result}`);
-                } else {
-                    this.log(`GOAL_VAR [${goalVarId}]: NOT FOUND -> 0`);
-                    result = 0;
-                }
-                break;
-
-            case "goal_ind":
-                const goalIndId = node.value;
-                this.log(`GOAL_IND: Fetching indicator goal [${goalIndId}]`);
-                if (goalIndId) {
-                    result = await ctx.fetchIndicatorGoal(goalIndId);
-                    this.log(`  -> Indicator goal value: ${result}`);
-                } else {
-                    this.log(`  -> Invalid ID -> 0`);
-                    result = 0;
-                }
-                break;
-
-            case "quad_ind":
-                // Assume quad_ind behaves similarly to goal_ind or needs specific handling?
-                // User example didn't detail fetching logic for quad_ind, but C# code didn't show it explicitly in the snippet?
-                // Wait, looking at C# snippet, there IS NO `quad_ind` case! 
-                // But in ast.txt there IS `"kind": "quad_ind"`.
-                // I should handle it similarly to goal_ind or add a fetcher for it. 
-                // For now, I'll treat it as goal (user said "fetch indicator goal with the formula").
-                // Actually the user provided C# snippet seems to be missing `quad_ind`.
-                // I will assume for now it uses the same fetcher or return 0 if not implemented.
-                // Let's use fetchIndicatorGoal for now as placeholder or separate delegate if needed.
-                // Actually logic for quad goals might be different. I'll add a fetcher for it in context.
-                const quadIndId = node.value;
-                this.log(`QUAD_IND: Fetching [${quadIndId}]`);
-                if (quadIndId) {
-                    result = await ctx.fetchIndicatorGoal(quadIndId); // Reusing fetcher for now, assuming ID is unique globally
-                }
-                break;
-
-            case "quad_var":
-                const quadVarId = node.value;
-                if (quadVarId && ctx.goalValues[quadVarId] !== undefined) {
-                    result = ctx.goalValues[quadVarId];
-                    this.log(`QUAD_VAR [${quadVarId}]: ${result}`);
-                } else {
-                    this.log(`QUAD_VAR [${quadVarId}]: NOT FOUND -> 0`);
-                    result = 0;
-                }
-                break;
-
-                const advanceValue = node.value;
-                // Try to find variable ID from node, fallback to context variableId if missing
-                const refVarId = advanceValue?.idVariable || advanceValue?.variableId || ctx.variableId;
-
-                // Use node year/month if present, otherwise fallback to context
-                const year = advanceValue?.year ?? ctx.year;
-                const nodeMonths = advanceValue?.months;
-
-                let monthsList: number[] = [];
-                if (Array.isArray(nodeMonths) && nodeMonths.length > 0) {
-                    monthsList = nodeMonths;
-                } else if (ctx.month) {
-                    monthsList = [ctx.month!];
-                }
-
-                if (refVarId) {
-                    this.log(`REF_ADVANCE resolved to VarID: ${refVarId}, Year: ${year}, Months: ${monthsList.join(",")}`);
-                    result = await ctx.fetchAdvancesSum(refVarId, year ?? null, monthsList);
-                    this.log(`  -> Fetched advances sum: ${result}`);
-                } else {
-                    this.log(`  -> Missing variable ID in ref_advance (Context VarID: ${ctx.variableId}) -> 0`);
-                }
-                break;
-
-            case "ref":
-                // Reference to a Variable with a subFormula
-                const variableRefId = node.value;
-                const subFormula = node.subFormula;
-                this.log(`REF: Variable=${variableRefId}, Has SubFormula=${!!subFormula}`);
-
-                if (subFormula && variableRefId) {
-                    // Recursive evaluation of subFormula
-                    // IMPORTANT: The context for the subFormula should probably be the REFERENCED variable.
-                    // This allows ref_advance inside subFormula to default to the referenced variable.
-
-                    const subCtx = { ...ctx, variableId: variableRefId }; // Create new context with updated variableId
-                    result = await this.evaluate(subFormula, subCtx);
-
-                    ctx.subFormulaResults[variableRefId] = result;
-                    this.log(`  -> SubFormula result for ${variableRefId}: ${result}`);
-                }
-                break;
-
-            case "binary":
-                result = await this.evaluateBinary(node, ctx);
-                break;
-
-            case "call":
-                result = await this.evaluateCall(node, ctx);
-                break;
-
-            default:
-                this.log(`UNKNOWN kind: ${kind} -> 0`);
-                break;
-        }
-
+        const result = await this.evaluateNode(node, ctx);
         this._depth--;
+        return result;
+    }
+
+    private async evaluateNode(node: any, ctx: EvaluationContext): Promise<number> {
+        switch (node.kind) {
+            case "const":
+                return this.evaluateConst(node);
+            case "baseline":
+                return this.evaluateBaseline(ctx);
+            case "goal_var":
+                return this.evaluateGoalVar(node, ctx);
+            case "goal_ind":
+                return this.evaluateGoalInd(node, ctx);
+            case "quad_ind":
+                return this.evaluateQuadInd(node, ctx);
+            case "quad_var":
+                return this.evaluateQuadVar(node, ctx);
+            case "ref":
+                return this.evaluateRef(node, ctx);
+            case "binary":
+                return this.evaluateBinary(node, ctx);
+            case "call":
+                return this.evaluateCall(node, ctx);
+            default:
+                this.log(`UNKNOWN kind: ${node.kind} -> 0`);
+                return 0;
+        }
+    }
+
+    private evaluateConst(node: any): number {
+        const result = Number(node.value) || 0;
+        this.log(`CONST: ${result}`);
+        return result;
+    }
+
+    private evaluateBaseline(ctx: EvaluationContext): number {
+        const result = ctx.baseline || 0;
+        this.log(`BASELINE: ${result}`);
+        return result;
+    }
+
+    private evaluateGoalVar(node: any, ctx: EvaluationContext): number {
+        const goalVarId = node.value;
+        if (goalVarId && ctx.goalValues[goalVarId] !== undefined) {
+            const result = ctx.goalValues[goalVarId];
+            this.log(`GOAL_VAR [${goalVarId}]: ${result}`);
+            return result;
+        }
+        this.log(`GOAL_VAR [${goalVarId}]: NOT FOUND -> 0`);
+        return 0;
+    }
+
+    private async evaluateGoalInd(node: any, ctx: EvaluationContext): Promise<number> {
+        const goalIndId = node.value;
+        this.log(`GOAL_IND: Fetching indicator goal [${goalIndId}]`);
+        if (!goalIndId) {
+            this.log(`  -> Invalid ID -> 0`);
+            return 0;
+        }
+        const result = await ctx.fetchIndicatorGoal(goalIndId);
+        this.log(`  -> Indicator goal value: ${result}`);
+        return result;
+    }
+
+    private async evaluateQuadInd(node: any, ctx: EvaluationContext): Promise<number> {
+        const quadIndId = node.value;
+        this.log(`QUAD_IND: Fetching [${quadIndId}]`);
+        if (!quadIndId) return 0;
+        return ctx.fetchIndicatorGoal(quadIndId);
+    }
+
+    private evaluateQuadVar(node: any, ctx: EvaluationContext): number {
+        const quadVarId = node.value;
+        if (quadVarId && ctx.goalValues[quadVarId] !== undefined) {
+            const result = ctx.goalValues[quadVarId];
+            this.log(`QUAD_VAR [${quadVarId}]: ${result}`);
+            return result;
+        }
+        this.log(`QUAD_VAR [${quadVarId}]: NOT FOUND -> 0`);
+        return 0;
+    }
+
+    private async evaluateRef(node: any, ctx: EvaluationContext): Promise<number> {
+        const variableRefId = node.value;
+        const subFormula = node.subFormula;
+        this.log(`REF: Variable=${variableRefId}, Has SubFormula=${!!subFormula}`);
+
+        if (!subFormula || !variableRefId) return 0;
+
+        const subCtx = { ...ctx, variableId: variableRefId };
+        const result = await this.evaluate(subFormula, subCtx);
+        ctx.subFormulaResults[variableRefId] = result;
+        this.log(`  -> SubFormula result for ${variableRefId}: ${result}`);
         return result;
     }
 
@@ -166,13 +138,13 @@ export class AstEvaluatorService {
             case "+": result = left + right; break;
             case "-": result = left - right; break;
             case "*": result = left * right; break;
-            case "/": result = right !== 0 ? left / right : 0; break;
+            case "/": result = right === 0 ? 0 : left / right; break;
             case "=": result = left === right ? 1 : 0; break;
             case ">": result = left > right ? 1 : 0; break;
             case "<": result = left < right ? 1 : 0; break;
             case ">=": result = left >= right ? 1 : 0; break;
             case "<=": result = left <= right ? 1 : 0; break;
-            case "!=": result = left !== right ? 1 : 0; break;
+            case "!=": result = left === right ? 0 : 1; break;
         }
 
         this.log(`  -> ${left} ${op} ${right} = ${result}`);

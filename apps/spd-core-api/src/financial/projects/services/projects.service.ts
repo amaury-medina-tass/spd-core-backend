@@ -13,8 +13,8 @@ import { SYSTEM_NAME } from "../../../shared/constants";
 export class ProjectsService {
     constructor(
         @InjectRepository(Project)
-        private repo: Repository<Project>,
-        private dependenciesService: DependenciesService,
+        private readonly repo: Repository<Project>,
+        private readonly dependenciesService: DependenciesService,
         private readonly auditLog: AuditLogService,
     ) { }
 

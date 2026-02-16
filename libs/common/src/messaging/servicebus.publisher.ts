@@ -1,8 +1,8 @@
 import { ServiceBusClient, ServiceBusSender } from "@azure/service-bus";
 
 export class ServiceBusPublisher {
-  private client: ServiceBusClient;
-  private sender: ServiceBusSender;
+  private readonly client: ServiceBusClient;
+  private readonly sender: ServiceBusSender;
 
   constructor(connectionString: string, topic: string) {
     this.client = new ServiceBusClient(connectionString);

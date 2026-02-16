@@ -3,7 +3,7 @@ export interface ApiResponse<T = unknown> {
   statusCode: number;
   message: string;
   data: T | null;
-  errors: any | null;
+  errors: Record<string, unknown> | Array<{ message: string }> | null;
   meta?: {
     timestamp: string;
     requestId: string;

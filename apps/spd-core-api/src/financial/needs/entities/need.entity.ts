@@ -6,10 +6,10 @@ import {
     PrimaryGeneratedColumn,
     UpdateDateColumn,
     JoinColumn,
+    OneToMany,
 } from "typeorm";
 import { PreviousStudy } from "../../previous-studies/entities/previous-study.entity";
 import { MasterContract } from "../../master-contracts/entities/master-contract.entity";
-import { OneToMany } from "typeorm";
 
 @Entity({ name: "needs" })
 export class Need {

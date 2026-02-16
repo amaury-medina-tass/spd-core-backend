@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { AuditLogService } from "@common/cosmosdb/audit-log.service";
@@ -23,9 +23,6 @@ import {
     IndicatorGoalDto,
     IndicatorAdvanceDto,
     VariableWithDetailsDto,
-    VariableDto,
-    VariableGoalDto,
-    VariableAdvanceDto
 } from "../dtos/indicator-details-response.dto";
 
 @Injectable()
@@ -88,7 +85,9 @@ export class IndicatorAdvancesService {
 
         const isNew = !advance;
 
-        if (!advance) {
+        if (advance) {
+            advance.value = value;
+        } else {
             advance = repo.create({
                 year,
                 month,
@@ -96,8 +95,6 @@ export class IndicatorAdvancesService {
                 actionIndicatorId: type === 'action' ? indicatorId : null,
                 indicativeIndicatorId: type === 'indicative' ? indicatorId : null,
             });
-        } else {
-            advance.value = value;
         }
 
         const saved = await repo.save(advance);
@@ -134,18 +131,7 @@ export class IndicatorAdvancesService {
         const yearFilter = (year !== undefined && year !== 'all') ? year : null;
         const monthFilter = (month !== undefined && month !== 'all') ? month : null;
         // 1. Fetch and validate indicator
-        let indicator: ActionPlanIndicator | IndicativePlanIndicator | null;
-        if (type === 'action') {
-            indicator = await this.actionRepo.findOne({
-                where: { id: indicatorId },
-                relations: ['unitMeasure']
-            });
-        } else {
-            indicator = await this.indicativeRepo.findOne({
-                where: { id: indicatorId },
-                relations: ['unitMeasure']
-            });
-        }
+        const indicator = await this.fetchIndicatorByType(indicatorId, type);
 
         if (!indicator) {
             throw new NotFoundException({ message: `Indicator with ID ${indicatorId} not found`, code: ErrorCodes.INDICATOR_ADVANCE_NOT_FOUND });
@@ -162,23 +148,7 @@ export class IndicatorAdvancesService {
         });
 
         // 3. Fetch indicator advances (filter by year and/or month if specified)
-        const advancesQueryBuilder = this.repository.createQueryBuilder('ia');
-
-        if (type === 'action') {
-            advancesQueryBuilder.where('ia.actionIndicatorId = :indicatorId', { indicatorId });
-        } else {
-            advancesQueryBuilder.where('ia.indicativeIndicatorId = :indicatorId', { indicatorId });
-        }
-
-        if (yearFilter !== null) {
-            advancesQueryBuilder.andWhere('ia.year = :year', { year: yearFilter });
-        }
-
-        if (monthFilter !== null) {
-            advancesQueryBuilder.andWhere('ia.month = :month', { month: monthFilter });
-        }
-
-        const advances = await advancesQueryBuilder.getMany();
+        const advances = await this.fetchFilteredAdvances(indicatorId, type, yearFilter, monthFilter);
 
         // 4. Fetch related variables
         const relationRepo = type === 'action'
@@ -194,102 +164,12 @@ export class IndicatorAdvancesService {
         const variablesWithDetails: VariableWithDetailsDto[] = [];
 
         for (const relation of relations) {
-            const variable = relation.variable;
-
-            // Fetch variable goals (filter by year if specified)
-            const varGoalWhere: any = { variableId: variable.id };
-            if (yearFilter !== null) {
-                varGoalWhere.year = yearFilter;
-            }
-            const variableGoals = await this.variableGoalRepo.find({
-                where: varGoalWhere,
-            });
-
-            // Fetch variable advances (filter by year and/or month if specified)
-            const variableAdvancesQuery = this.variableAdvanceRepo.createQueryBuilder('va')
-                .where('va.variableId = :variableId', { variableId: variable.id });
-
-            if (yearFilter !== null) {
-                variableAdvancesQuery.andWhere('va.year = :year', { year: yearFilter });
-            }
-
-            if (monthFilter !== null) {
-                variableAdvancesQuery.andWhere('va.month = :month', { month: monthFilter });
-            }
-
-            const variableAdvances = await variableAdvancesQuery.getMany();
-
-            // Fetch calculated contextual accumulator value
-            let calculatedValue: number | null = null;
-            let lastCalculationDate: Date | null = null;
-
-            if (type === 'action') {
-                const accumulator = await this.variableContextualAccumulatorRepo.findOne({
-                    where: { actionRelationId: relation.id }
-                });
-                calculatedValue = accumulator?.calculatedValue ? Number(accumulator.calculatedValue) : null;
-                lastCalculationDate = accumulator?.lastCalculationDate || null;
-            } else {
-                const accumulator = await this.variableContextualAccumulatorRepo.findOne({
-                    where: { indicativeRelationId: relation.id }
-                });
-                calculatedValue = accumulator?.calculatedValue ? Number(accumulator.calculatedValue) : null;
-                lastCalculationDate = accumulator?.lastCalculationDate || null;
-            }
-
-            // Map to DTOs
-            const variableDto: VariableDto = {
-                id: variable.id,
-                name: variable.name,
-                description: variable.code, // Using code as description since Variable doesn't have description field
-                unitMeasure: undefined // Variable entity doesn't have direct unitMeasure relation
-            };
-
-            const variableGoalDtos: VariableGoalDto[] = variableGoals.map(goal => ({
-                id: goal.id,
-                year: goal.year,
-                value: Number(goal.value)
-            }));
-
-            const variableAdvanceDtos: VariableAdvanceDto[] = variableAdvances.map(advance => ({
-                id: advance.id,
-                year: advance.year,
-                month: advance.month,
-                value: Number(advance.value),
-                observations: advance.observations
-            }));
-
-            variablesWithDetails.push({
-                variable: variableDto,
-                goals: variableGoalDtos,
-                advances: variableAdvanceDtos,
-                calculatedValue,
-                lastCalculationDate
-            });
+            const details = await this.fetchVariableWithDetails(relation, type, yearFilter, monthFilter);
+            variablesWithDetails.push(details);
         }
 
-        // 6. Fetch accumulated advance (latest by year, then by month)
-        const accumulatedAdvanceQuery = this.repository.createQueryBuilder('ia');
-
-        if (type === 'action') {
-            accumulatedAdvanceQuery.where('ia.actionIndicatorId = :indicatorId', { indicatorId });
-        } else {
-            accumulatedAdvanceQuery.where('ia.indicativeIndicatorId = :indicatorId', { indicatorId });
-        }
-
-        accumulatedAdvanceQuery
-            .orderBy('ia.year', 'DESC')
-            .addOrderBy('ia.month', 'DESC', 'NULLS LAST')
-            .limit(1);
-
-        const latestAdvance = await accumulatedAdvanceQuery.getOne();
-
-        const accumulatedAdvance: IndicatorAdvanceDto | null = latestAdvance ? {
-            id: latestAdvance.id,
-            year: latestAdvance.year,
-            month: latestAdvance.month,
-            value: Number(latestAdvance.value)
-        } : null;
+        // 6. Fetch accumulated advance
+        const accumulatedAdvance = await this.fetchAccumulatedAdvance(indicatorId, type);
 
         // 7. Build and return response
         const indicatorDto: IndicatorDto = {
@@ -322,6 +202,108 @@ export class IndicatorAdvancesService {
         };
     }
 
+    private async fetchIndicatorByType(
+        indicatorId: string, type: 'action' | 'indicative'
+    ): Promise<ActionPlanIndicator | IndicativePlanIndicator | null> {
+        const repo = type === 'action' ? this.actionRepo : this.indicativeRepo;
+        return repo.findOne({ where: { id: indicatorId }, relations: ['unitMeasure'] });
+    }
+
+    private async fetchFilteredAdvances(
+        indicatorId: string, type: 'action' | 'indicative',
+        yearFilter: number | null, monthFilter: number | null
+    ): Promise<IndicatorAdvance[]> {
+        const qb = this.repository.createQueryBuilder('ia');
+        const column = type === 'action' ? 'ia.actionIndicatorId' : 'ia.indicativeIndicatorId';
+        qb.where(`${column} = :indicatorId`, { indicatorId });
+
+        if (yearFilter !== null) {
+            qb.andWhere('ia.year = :year', { year: yearFilter });
+        }
+        if (monthFilter !== null) {
+            qb.andWhere('ia.month = :month', { month: monthFilter });
+        }
+        return qb.getMany();
+    }
+
+    private async fetchVariableWithDetails(
+        relation: any,
+        type: 'action' | 'indicative',
+        yearFilter: number | null,
+        monthFilter: number | null
+    ): Promise<VariableWithDetailsDto> {
+        const variable = relation.variable;
+
+        // Fetch variable goals
+        const varGoalWhere: any = { variableId: variable.id };
+        if (yearFilter !== null) {
+            varGoalWhere.year = yearFilter;
+        }
+        const variableGoals = await this.variableGoalRepo.find({ where: varGoalWhere });
+
+        // Fetch variable advances
+        const vaQuery = this.variableAdvanceRepo.createQueryBuilder('va')
+            .where('va.variableId = :variableId', { variableId: variable.id });
+        if (yearFilter !== null) {
+            vaQuery.andWhere('va.year = :year', { year: yearFilter });
+        }
+        if (monthFilter !== null) {
+            vaQuery.andWhere('va.month = :month', { month: monthFilter });
+        }
+        const variableAdvances = await vaQuery.getMany();
+
+        // Fetch contextual accumulator
+        const { calculatedValue, lastCalculationDate } = await this.fetchAccumulatorValues(relation, type);
+
+        return {
+            variable: {
+                id: variable.id,
+                name: variable.name,
+                description: variable.code,
+                unitMeasure: undefined
+            },
+            goals: variableGoals.map(g => ({ id: g.id, year: g.year, value: Number(g.value) })),
+            advances: variableAdvances.map(a => ({
+                id: a.id, year: a.year, month: a.month,
+                value: Number(a.value), observations: a.observations
+            })),
+            calculatedValue,
+            lastCalculationDate
+        };
+    }
+
+    private async fetchAccumulatorValues(
+        relation: any, type: 'action' | 'indicative'
+    ): Promise<{ calculatedValue: number | null; lastCalculationDate: Date | null }> {
+        const whereClause = type === 'action'
+            ? { actionRelationId: relation.id }
+            : { indicativeRelationId: relation.id };
+        const accumulator = await this.variableContextualAccumulatorRepo.findOne({ where: whereClause });
+        return {
+            calculatedValue: accumulator?.calculatedValue ? Number(accumulator.calculatedValue) : null,
+            lastCalculationDate: accumulator?.lastCalculationDate || null
+        };
+    }
+
+    private async fetchAccumulatedAdvance(
+        indicatorId: string, type: 'action' | 'indicative'
+    ): Promise<IndicatorAdvanceDto | null> {
+        const qb = this.repository.createQueryBuilder('ia');
+        const column = type === 'action' ? 'ia.actionIndicatorId' : 'ia.indicativeIndicatorId';
+        qb.where(`${column} = :indicatorId`, { indicatorId })
+            .orderBy('ia.year', 'DESC')
+            .addOrderBy('ia.month', 'DESC', 'NULLS LAST')
+            .limit(1);
+        const latestAdvance = await qb.getOne();
+        if (!latestAdvance) return null;
+        return {
+            id: latestAdvance.id,
+            year: latestAdvance.year,
+            month: latestAdvance.month,
+            value: Number(latestAdvance.value)
+        };
+    }
+
     private async updateParentCache(indicatorId: string, type: 'action' | 'indicative', manager?: any) {
         // Calculate Sum
         const repo = manager ? manager.getRepository(IndicatorAdvance) : this.repository;
@@ -331,7 +313,7 @@ export class IndicatorAdvancesService {
             .where(type === 'action' ? "ia.actionIndicatorId = :indicatorId" : "ia.indicativeIndicatorId = :indicatorId", { indicatorId })
             .getRawOne();
 
-        const total = parseFloat(sumResult?.total || "0");
+        const total = Number.parseFloat(sumResult?.total || "0");
         this.logger.log(`Updated Cache for ${type} indicator ${indicatorId}: ${total}`);
 
         if (type === 'action') {
