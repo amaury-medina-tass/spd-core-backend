@@ -114,6 +114,16 @@ describe('SubUserFilterService', () => {
 
             expect(qb.andWhere).toHaveBeenCalled();
         });
+
+        it('sorts by relation field (dotted)', async () => {
+            actionUserRepo.find.mockResolvedValue([{ indicatorId: 'act-1' }]);
+            const qb = createMockQueryBuilder();
+            actionRepo.createQueryBuilder.mockReturnValue(qb);
+
+            await service.getActionIndicatorsByUser('user-1', 1, 10, undefined, 'unitMeasure.name', 'ASC');
+
+            expect(qb.orderBy).toHaveBeenCalledWith('unitMeasure.name', 'ASC');
+        });
     });
 
     describe('getVariablesByUser', () => {
@@ -153,6 +163,16 @@ describe('SubUserFilterService', () => {
             await service.getVariablesByUser('user-1', 1, 10, undefined, 'code', 'ASC');
 
             expect(qb.orderBy).toHaveBeenCalledWith('variable.code', 'ASC');
+        });
+
+        it('sorts by relation field (dotted)', async () => {
+            variableUserRepo.find.mockResolvedValue([{ variableId: 'var-1' }]);
+            const qb = createMockQueryBuilder();
+            variableRepo.createQueryBuilder.mockReturnValue(qb);
+
+            await service.getVariablesByUser('user-1', 1, 10, undefined, 'invalid-sort', 'DESC');
+
+            expect(qb.orderBy).toHaveBeenCalledWith('variable.createAt', 'DESC');
         });
     });
 });

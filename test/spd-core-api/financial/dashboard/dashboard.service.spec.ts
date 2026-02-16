@@ -127,6 +127,26 @@ describe('DashboardService', () => {
             expect(modQb.where).toHaveBeenCalled();
             expect(modQb.andWhere).toHaveBeenCalled();
         });
+
+        it('accepts year only (no month)', async () => {
+            const projectQb = createMockQueryBuilder();
+            projectQb.getRawOne.mockResolvedValue({
+                totalInitialBudget: '0', totalCurrentBudget: '0',
+                totalExecution: '0', totalProjects: '0',
+            });
+            repos.projectRepo.createQueryBuilder.mockReturnValue(projectQb);
+
+            const modQb = createMockQueryBuilder();
+            modQb.clone.mockReturnValue(modQb);
+            modQb.getRawOne.mockResolvedValue({ total: '0' });
+            repos.budgetModRepo.createQueryBuilder.mockReturnValue(modQb);
+
+            const result = await service.getGlobalData(2024);
+
+            expect(modQb.where).toHaveBeenCalled();
+            // andWhere for month should NOT have been called because month is undefined
+            expect(result.totalInitialBudget).toBe(0);
+        });
     });
 
     describe('getNeedsWithCdps', () => {
@@ -218,6 +238,23 @@ describe('DashboardService', () => {
             const result = await service.getMasterContractsByCdp('cdp-1');
 
             expect(result[0].number).toBe('MC-001');
+            expect(result[0].needCode).toBe('N-01');
+        });
+
+        it('handles null need (needCode = null)', async () => {
+            const qb = createMockQueryBuilder();
+            qb.getMany.mockResolvedValue([{
+                masterContract: {
+                    id: 'mc-2', number: 'MC-002', object: 'No need', totalValue: 500,
+                    startDate: '2024-01-01', endDate: '2024-06-30', state: 'ACTIVE',
+                    need: null,
+                },
+            }]);
+            repos.contractCdpRepo.createQueryBuilder.mockReturnValue(qb);
+
+            const result = await service.getMasterContractsByCdp('cdp-2');
+
+            expect(result[0].needCode).toBeNull();
         });
     });
 
@@ -323,6 +360,19 @@ describe('DashboardService', () => {
             expect(result[0].executionPercentage).toBe(60);
             expect(result[0].detailedActivitiesCount).toBe(2);
         });
+
+        it('handles zero totalValue', async () => {
+            const qb = createMockQueryBuilder();
+            qb.getRawMany.mockResolvedValue([
+                { id: '2', code: 'MGA-02', name: 'MGA Zero', activityDate: null, totalValue: '0', totalBalance: '0', detailedCount: '0' },
+            ]);
+            repos.mgaActivityRepo.createQueryBuilder.mockReturnValue(qb);
+
+            const result = await service.getMgaActivitiesByProject('proj-2');
+
+            expect(result[0].executedValue).toBe(0);
+            expect(result[0].executionPercentage).toBe(0);
+        });
     });
 
     describe('getDetailedActivitiesByMga', () => {
@@ -337,6 +387,19 @@ describe('DashboardService', () => {
 
             expect(result[0].executedValue).toBe(400);
             expect(result[0].executionPercentage).toBe(40);
+        });
+
+        it('handles zero budget ceiling', async () => {
+            const qb = createMockQueryBuilder();
+            qb.getRawMany.mockResolvedValue([
+                { id: '2', code: 'DA-02', name: 'Zero', budgetCeiling: '0', balance: '0', projectCode: 'P-02', cdpCount: '0' },
+            ]);
+            repos.mgaDetailedRelRepo.createQueryBuilder.mockReturnValue(qb);
+
+            const result = await service.getDetailedActivitiesByMga('mga-2');
+
+            expect(result[0].executedValue).toBe(0);
+            expect(result[0].executionPercentage).toBe(0);
         });
     });
 
