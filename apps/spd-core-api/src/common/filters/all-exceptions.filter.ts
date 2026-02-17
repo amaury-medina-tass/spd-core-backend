@@ -26,8 +26,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
       if (typeof response === "string") {
         message = response;
       } else {
-        message = response.message || exception.message;
-        errorCode = response.code || null;
+        message = response.message ?? exception.message;
+        errorCode = response.code ?? null;
 
         // Extract additional properties (excluding standard ones)
         const { message: _, code: __, statusCode: ___, error: ____, ...rest } = response;
@@ -50,7 +50,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       statusCode: httpStatus,
       message,
       data: null,
-      errors: errors || (errorCode ? { code: errorCode, ...errorData } : null),
+      errors: errors ?? (errorCode ? { code: errorCode, ...errorData } : null),
       meta: {
         timestamp: new Date().toISOString(),
         requestId: request.headers["x-request-id"] ?? randomUUID(),
