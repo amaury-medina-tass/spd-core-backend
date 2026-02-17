@@ -4,6 +4,11 @@ import { JwtAuthGuard } from "../../../../auth/guards/jwt-auth.guard";
 import { PermissionsGuard } from "../../../../common/guards/permissions.guard";
 import { RequirePermission } from "../../../../common/decorators/require-permission.decorator";
 
+/**
+ * Controller for project ↔ action-plan-indicator relations.
+ * Similar pattern to variable relations but uses "projects" sub-resource
+ * with different Body param (projectId), so it doesn't extend the base.
+ */
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller("masters/action-plan-indicators")
 export class ProjectActionIndicatorRelationsController {
@@ -13,7 +18,7 @@ export class ProjectActionIndicatorRelationsController {
     @RequirePermission("/masters/indicators", "CREATE")
     associate(
         @Param("id", ParseUUIDPipe) id: string,
-        @Body("projectId", ParseUUIDPipe) projectId: string
+        @Body("projectId", ParseUUIDPipe) projectId: string,
     ) {
         return this.relationsService.associate(id, projectId);
     }
@@ -22,7 +27,7 @@ export class ProjectActionIndicatorRelationsController {
     @RequirePermission("/masters/indicators", "DELETE")
     disassociate(
         @Param("id", ParseUUIDPipe) id: string,
-        @Param("projectId", ParseUUIDPipe) projectId: string
+        @Param("projectId", ParseUUIDPipe) projectId: string,
     ) {
         return this.relationsService.disassociate(id, projectId);
     }
@@ -34,14 +39,14 @@ export class ProjectActionIndicatorRelationsController {
         @Query("page") page: number,
         @Query("limit") limit: number,
         @Query("search") search: string,
-        @Query("type") type: "associated" | "available" | "all" = "all"
+        @Query("type") type: "associated" | "available" | "all" = "all",
     ) {
         return this.relationsService.findPaginated(
             id,
             type,
             page ? +page : 1,
             limit ? +limit : 20,
-            search
+            search,
         );
     }
 }

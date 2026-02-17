@@ -7,6 +7,15 @@ import { DetailedActivitiesService } from "../../masters/detailed-activities/ser
 import { CdpProject } from "../../financial/cdps/entities/cdp-project.entity";
 import { PoaiPpa } from "../../financial/poai-ppa/entities/poai-ppa.entity";
 import { ExportResult } from "./export.types";
+import {
+  PROJECT_COLUMNS,
+  MGA_SHORT_COLUMNS,
+  POAI_PPA_INLINE_COLUMNS,
+  mapProjectToExport,
+  mapMgaActivityShortToExport,
+  mapPoaiPpaToExport,
+  getExportDate,
+} from "../../shared/helpers/export-columns.helper";
 
 @Injectable()
 export class ProjectsExportBuilder {
@@ -38,17 +47,7 @@ export class ProjectsExportBuilder {
       "ASC",
     );
 
-    const data = result.data.map((row: any) => ({
-      code: row.code ?? "",
-      name: row.name ?? "",
-      initialBudget: row.initialBudget ? Number(row.initialBudget) : 0,
-      currentBudget: row.currentBudget ? Number(row.currentBudget) : 0,
-      execution: row.execution ? Number(row.execution) : 0,
-      origin: row.origin ?? "",
-      state: row.state ?? "",
-      dependencyCode: row.dependency?.code ?? "",
-      dependencyName: row.dependency?.name ?? "",
-    }));
+    const data = result.data.map(mapProjectToExport);
 
     // 2. CDPs asociados a proyectos
     const cdpProjects = await this.cdpProjectRepository
@@ -88,16 +87,7 @@ export class ProjectsExportBuilder {
       "ASC",
     );
 
-    const mgaData = mgaResult.data.map((row: any) => ({
-      projectCode: row.project?.code ?? "",
-      projectName: row.project?.name ?? "",
-      mgaCode: row.code ?? "",
-      mgaName: row.name ?? "",
-      observations: row.observations ?? "",
-      value: row.value ?? 0,
-      balance: row.balance ?? 0,
-      detailedActivitiesCount: row.detailedActivitiesCount ?? 0,
-    }));
+    const mgaData = mgaResult.data.map(mapMgaActivityShortToExport);
 
     // 4. Actividades Detalladas por proyecto
     const detailedResult = await this.detailedActivitiesService.findAllPaginated(
@@ -136,32 +126,16 @@ export class ProjectsExportBuilder {
       .addOrderBy("pp.year", "ASC")
       .getMany();
 
-    const poaiData = poaiPpa.map((row: any) => ({
-      projectCode: row.project?.code ?? row.projectCode ?? "",
-      projectName: row.project?.name ?? "",
-      year: row.year ?? "",
-      projectedPoai: row.projectedPoai ? Number(row.projectedPoai) : 0,
-      assignedPoai: row.assignedPoai ? Number(row.assignedPoai) : 0,
-    }));
+    const poaiData = poaiPpa.map(mapPoaiPpaToExport);
 
-    const now = new Date().toISOString().slice(0, 10);
+    const now = getExportDate();
 
     return {
       fileName: `proyectos-${now}.xlsx`,
       sheets: [
         {
           name: "Proyectos",
-          columns: [
-            { header: "Código", key: "code", width: 18 },
-            { header: "Nombre", key: "name", width: 40 },
-            { header: "Presupuesto Inicial", key: "initialBudget", width: 20, numFmt: "#,##0.00" },
-            { header: "Presupuesto Actual", key: "currentBudget", width: 20, numFmt: "#,##0.00" },
-            { header: "Ejecución", key: "execution", width: 20, numFmt: "#,##0.00" },
-            { header: "Origen", key: "origin", width: 20 },
-            { header: "Estado", key: "state", width: 15 },
-            { header: "Dependencia (Código)", key: "dependencyCode", width: 18 },
-            { header: "Dependencia (Nombre)", key: "dependencyName", width: 35 },
-          ],
+          columns: PROJECT_COLUMNS,
           data,
         },
         {
@@ -179,16 +153,7 @@ export class ProjectsExportBuilder {
         },
         {
           name: "Actividades MGA",
-          columns: [
-            { header: "Proyecto (Código)", key: "projectCode", width: 18 },
-            { header: "Proyecto (Nombre)", key: "projectName", width: 35 },
-            { header: "MGA (Código)", key: "mgaCode", width: 18 },
-            { header: "MGA (Nombre)", key: "mgaName", width: 40 },
-            { header: "Observaciones", key: "observations", width: 35 },
-            { header: "Valor", key: "value", width: 20, numFmt: "#,##0.00" },
-            { header: "Saldo", key: "balance", width: 20, numFmt: "#,##0.00" },
-            { header: "Act. Detalladas", key: "detailedActivitiesCount", width: 18 },
-          ],
+          columns: MGA_SHORT_COLUMNS,
           data: mgaData,
         },
         {
@@ -207,13 +172,7 @@ export class ProjectsExportBuilder {
         },
         {
           name: "POAI PPA",
-          columns: [
-            { header: "Proyecto (Código)", key: "projectCode", width: 18 },
-            { header: "Proyecto (Nombre)", key: "projectName", width: 35 },
-            { header: "Año", key: "year", width: 10 },
-            { header: "POAI Proyectado", key: "projectedPoai", width: 20, numFmt: "#,##0.00" },
-            { header: "POAI Asignado", key: "assignedPoai", width: 20, numFmt: "#,##0.00" },
-          ],
+          columns: POAI_PPA_INLINE_COLUMNS,
           data: poaiData,
         },
       ],

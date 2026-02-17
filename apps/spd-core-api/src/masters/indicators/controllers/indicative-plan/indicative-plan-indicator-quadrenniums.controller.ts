@@ -19,7 +19,7 @@ export class IndicativePlanIndicatorQuadrenniumsController {
     @Get("by-indicator/:indicatorId")
     @RequirePermission("/masters/indicative-plan-indicators-quadrenniums", "READ")
     findAllByIndicator(@Param("indicatorId", ParseUUIDPipe) indicatorId: string) {
-        return this.service.findAllByIndicator(indicatorId);
+        return this.service.findAllByParent(indicatorId);
     }
 
     @Get(":id")

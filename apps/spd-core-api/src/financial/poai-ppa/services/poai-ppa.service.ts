@@ -9,6 +9,7 @@ import { AuditLogService } from "@common/cosmosdb/audit-log.service";
 import { AuditAction, AuditEntityType, buildChanges } from "@common/types/audit.types";
 import { ErrorCodes } from "@common/errors/error-codes";
 import { SYSTEM_NAME } from "../../../shared/constants";
+import { calculateSkip, validateSortParams, applyOrderBy, buildPaginatedMeta } from "../../../shared/helpers";
 
 @Injectable()
 export class PoaiPpaService {
@@ -71,23 +72,9 @@ export class PoaiPpaService {
         year?: number,
         projectId?: string
     ) {
-        const skip = (page - 1) * limit;
-
-        const validSortOrder =
-            sortOrder === "ASC" || sortOrder === "DESC" ? sortOrder : "DESC";
-
-        const sortableFields = [
-            "createAt",
-            "updateAt",
-            "year",
-            "projectedPoai",
-            "assignedPoai",
-            "projectCode",
-            "project.code",
-            "project.name"
-        ];
-        const validSortBy =
-            sortBy && sortableFields.includes(sortBy) ? sortBy : "year";
+        const skip = calculateSkip(page, limit);
+        const sortableFields = ["createAt", "updateAt", "year", "projectedPoai", "assignedPoai", "projectCode", "project.code", "project.name"];
+        const { validSortBy, validSortOrder } = validateSortParams(sortBy, sortOrder, sortableFields, "year");
 
         const queryBuilder = this.repo
             .createQueryBuilder("poaiPpa")
@@ -111,30 +98,12 @@ export class PoaiPpaService {
             queryBuilder.andWhere("project.id = :projectId", { projectId });
         }
 
-        if (validSortBy.includes(".")) {
-            const [relation, field] = validSortBy.split(".");
-            queryBuilder.orderBy(`${relation}.${field}`, validSortOrder);
-        } else {
-            queryBuilder.orderBy(`poaiPpa.${validSortBy}`, validSortOrder);
-        }
-
+        applyOrderBy(queryBuilder, "poaiPpa", validSortBy, validSortOrder);
         queryBuilder.skip(skip).take(limit);
 
         const [data, total] = await queryBuilder.getManyAndCount();
 
-        const totalPages = Math.ceil(total / limit);
-
-        return {
-            data,
-            meta: {
-                total,
-                page,
-                limit,
-                totalPages,
-                hasNextPage: page < totalPages,
-                hasPreviousPage: page > 1,
-            },
-        };
+        return { data, meta: buildPaginatedMeta(total, page, limit) };
     }
 
     async findOne(id: string) {

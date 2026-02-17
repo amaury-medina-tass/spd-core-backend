@@ -8,6 +8,7 @@ import { AuditLogService } from "@common/cosmosdb/audit-log.service";
 import { AuditAction, AuditEntityType, buildChanges } from "@common/types/audit.types";
 import { ErrorCodes } from "@common/errors/error-codes";
 import { SYSTEM_NAME } from "../../../shared/constants";
+import { buildPaginatedMeta, executeFindForSelect, calculateSkip, validateSortParams } from "../../../shared/helpers";
 
 @Injectable()
 export class VariablesService {
@@ -44,20 +45,9 @@ export class VariablesService {
         sortBy?: string,
         sortOrder?: "ASC" | "DESC"
     ) {
-        const skip = (page - 1) * limit;
-
-        const validSortOrder =
-            sortOrder === "ASC" || sortOrder === "DESC" ? sortOrder : "DESC";
-
-        const sortableFields = [
-            "createAt",
-            "updateAt",
-            "code",
-            "name",
-            "observations",
-        ];
-        const validSortBy =
-            sortBy && sortableFields.includes(sortBy) ? sortBy : "createAt";
+        const skip = calculateSkip(page, limit);
+        const sortableFields = ["createAt", "updateAt", "code", "name", "observations"];
+        const { validSortBy, validSortOrder } = validateSortParams(sortBy, sortOrder, sortableFields);
 
         const queryBuilder = this.variableRepository
             .createQueryBuilder("variable")
@@ -72,24 +62,11 @@ export class VariablesService {
         }
 
         queryBuilder.orderBy(`variable.${validSortBy}`, validSortOrder);
-
         queryBuilder.skip(skip).take(limit);
 
         const [data, total] = await queryBuilder.getManyAndCount();
 
-        const totalPages = Math.ceil(total / limit);
-
-        return {
-            data,
-            meta: {
-                total,
-                page,
-                limit,
-                totalPages,
-                hasNextPage: page < totalPages,
-                hasPreviousPage: page > 1,
-            },
-        };
+        return { data, meta: buildPaginatedMeta(total, page, limit) };
     }
 
     async findOne(id: string): Promise<Variable> {
@@ -161,29 +138,20 @@ export class VariablesService {
                 "variable.createAt",
             ]);
 
-        if (search) {
-            queryBuilder.where(
-                new Brackets((qb) => {
-                    qb.where("variable.code ILIKE :search", { search: `%${search}%` })
-                        .orWhere("variable.name ILIKE :search", { search: `%${search}%` });
-                })
-            );
-        }
-
-        const [data, total] = await queryBuilder
-            .orderBy("variable.createAt", "DESC")
-            .skip(offset)
-            .take(limit)
-            .getManyAndCount();
-
-        return {
-            data,
-            meta: {
-                total,
-                limit,
-                offset,
-                hasMore: offset + data.length < total,
+        return executeFindForSelect({
+            queryBuilder,
+            applySearch: (qb, s) => {
+                qb.where(
+                    new Brackets((b) => {
+                        b.where("variable.code ILIKE :search", { search: `%${s}%` })
+                            .orWhere("variable.name ILIKE :search", { search: `%${s}%` });
+                    })
+                );
             },
-        };
+            orderBy: [["variable.createAt", "DESC"]],
+            search,
+            limit,
+            offset,
+        });
     }
 }

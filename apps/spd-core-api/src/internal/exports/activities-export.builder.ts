@@ -7,6 +7,15 @@ import { ProductsService } from "../../masters/products/services/products.servic
 import { ProjectsService } from "../../financial/projects/services/projects.service";
 import { MgaDetailedRelation } from "../../masters/mga-activities/entities/mga-detailed-relation.entity";
 import { ExportResult } from "./export.types";
+import {
+  MGA_ACTIVITIES_COLUMNS,
+  DETAILED_ACTIVITY_COLUMNS,
+  PROJECT_COLUMNS,
+  mapMgaActivityToExport,
+  mapDetailedActivityToExport,
+  mapProjectToExport,
+  getExportDate,
+} from "../../shared/helpers/export-columns.helper";
 
 @Injectable()
 export class ActivitiesExportBuilder {
@@ -40,38 +49,16 @@ export class ActivitiesExportBuilder {
       "ASC",
     );
 
-    const data = result.data.map((row: any) => ({
-      code: row.code ?? "",
-      name: row.name ?? "",
-      observations: row.observations ?? "",
-      projectCode: row.project?.code ?? "",
-      projectName: row.project?.name ?? "",
-      productCode: row.product?.productCode ?? "",
-      productName: row.product?.productName ?? "",
-      value: row.value ?? 0,
-      balance: row.balance ?? 0,
-      detailedActivitiesCount: row.detailedActivitiesCount ?? 0,
-    }));
+    const data = result.data.map(mapMgaActivityToExport);
 
-    const now = new Date().toISOString().slice(0, 10);
+    const now = getExportDate();
 
     return {
       fileName: `actividades-mga-${now}.xlsx`,
       sheets: [
         {
           name: "Actividades MGA",
-          columns: [
-            { header: "Código", key: "code", width: 18 },
-            { header: "Nombre", key: "name", width: 40 },
-            { header: "Observaciones", key: "observations", width: 35 },
-            { header: "Proyecto (Código)", key: "projectCode", width: 18 },
-            { header: "Proyecto (Nombre)", key: "projectName", width: 35 },
-            { header: "Producto (Código)", key: "productCode", width: 18 },
-            { header: "Producto (Nombre)", key: "productName", width: 35 },
-            { header: "Valor", key: "value", width: 20, numFmt: "#,##0.00" },
-            { header: "Saldo", key: "balance", width: 20, numFmt: "#,##0.00" },
-            { header: "Act. Detalladas", key: "detailedActivitiesCount", width: 18 },
-          ],
+          columns: MGA_ACTIVITIES_COLUMNS,
           data,
         },
       ],
@@ -98,18 +85,7 @@ export class ActivitiesExportBuilder {
       "ASC",
     );
 
-    const mgaData = mgaResult.data.map((row: any) => ({
-      code: row.code ?? "",
-      name: row.name ?? "",
-      observations: row.observations ?? "",
-      projectCode: row.project?.code ?? "",
-      projectName: row.project?.name ?? "",
-      productCode: row.product?.productCode ?? "",
-      productName: row.product?.productName ?? "",
-      value: row.value ?? 0,
-      balance: row.balance ?? 0,
-      detailedActivitiesCount: row.detailedActivitiesCount ?? 0,
-    }));
+    const mgaData = mgaResult.data.map(mapMgaActivityToExport);
 
     // 2. Actividades Detalladas
     const detailedResult = await this.detailedActivitiesService.findAllPaginated(
@@ -120,19 +96,7 @@ export class ActivitiesExportBuilder {
       "ASC",
     );
 
-    const detailedData = detailedResult.data.map((row: any) => ({
-      code: row.code ?? "",
-      name: row.name ?? "",
-      observations: row.observations ?? "",
-      activityDate: row.activityDate ?? "",
-      budgetCeiling: row.budgetCeiling ?? 0,
-      balance: row.balance ?? 0,
-      cpc: row.cpc ?? "",
-      projectCode: row.project?.code ?? "",
-      projectName: row.project?.name ?? "",
-      rubricCode: row.rubric?.code ?? "",
-      rubricName: row.rubric?.accountName ?? "",
-    }));
+    const detailedData = detailedResult.data.map(mapDetailedActivityToExport);
 
     // 3. Relaciones MGA -> Detalladas
     const relations = await this.mgaDetailedRelationRepository
@@ -187,54 +151,21 @@ export class ActivitiesExportBuilder {
       "ASC",
     );
 
-    const projectsData = projectsResult.data.map((row: any) => ({
-      code: row.code ?? "",
-      name: row.name ?? "",
-      initialBudget: row.initialBudget ?? 0,
-      currentBudget: row.currentBudget ?? 0,
-      execution: row.execution ?? 0,
-      origin: row.origin ?? "",
-      state: row.state ?? "",
-      dependencyCode: row.dependency?.code ?? "",
-      dependencyName: row.dependency?.name ?? "",
-    }));
+    const projectsData = projectsResult.data.map(mapProjectToExport);
 
-    const now = new Date().toISOString().slice(0, 10);
+    const now = getExportDate();
 
     return {
       fileName: `reporte-actividades-completo-${now}.xlsx`,
       sheets: [
         {
           name: "Actividades MGA",
-          columns: [
-            { header: "Código", key: "code", width: 18 },
-            { header: "Nombre", key: "name", width: 40 },
-            { header: "Observaciones", key: "observations", width: 35 },
-            { header: "Proyecto (Código)", key: "projectCode", width: 18 },
-            { header: "Proyecto (Nombre)", key: "projectName", width: 35 },
-            { header: "Producto (Código)", key: "productCode", width: 18 },
-            { header: "Producto (Nombre)", key: "productName", width: 35 },
-            { header: "Valor", key: "value", width: 20, numFmt: "#,##0.00" },
-            { header: "Saldo", key: "balance", width: 20, numFmt: "#,##0.00" },
-            { header: "Act. Detalladas", key: "detailedActivitiesCount", width: 18 },
-          ],
+          columns: MGA_ACTIVITIES_COLUMNS,
           data: mgaData,
         },
         {
           name: "Actividades Detalladas",
-          columns: [
-            { header: "Código", key: "code", width: 18 },
-            { header: "Nombre", key: "name", width: 40 },
-            { header: "Observaciones", key: "observations", width: 35 },
-            { header: "Fecha Actividad", key: "activityDate", width: 18 },
-            { header: "Techo Presupuestal", key: "budgetCeiling", width: 20, numFmt: "#,##0.00" },
-            { header: "Saldo", key: "balance", width: 20, numFmt: "#,##0.00" },
-            { header: "CPC", key: "cpc", width: 18 },
-            { header: "Proyecto (Código)", key: "projectCode", width: 18 },
-            { header: "Proyecto (Nombre)", key: "projectName", width: 35 },
-            { header: "Posición Presupuestal (Código)", key: "rubricCode", width: 28 },
-            { header: "Posición Presupuestal (Nombre)", key: "rubricName", width: 40 },
-          ],
+          columns: DETAILED_ACTIVITY_COLUMNS,
           data: detailedData,
         },
         {
@@ -262,17 +193,7 @@ export class ActivitiesExportBuilder {
         },
         {
           name: "Proyectos",
-          columns: [
-            { header: "Código", key: "code", width: 18 },
-            { header: "Nombre", key: "name", width: 40 },
-            { header: "Presupuesto Inicial", key: "initialBudget", width: 20, numFmt: "#,##0.00" },
-            { header: "Presupuesto Actual", key: "currentBudget", width: 20, numFmt: "#,##0.00" },
-            { header: "Ejecución", key: "execution", width: 20, numFmt: "#,##0.00" },
-            { header: "Origen", key: "origin", width: 20 },
-            { header: "Estado", key: "state", width: 15 },
-            { header: "Dependencia (Código)", key: "dependencyCode", width: 18 },
-            { header: "Dependencia (Nombre)", key: "dependencyName", width: 35 },
-          ],
+          columns: PROJECT_COLUMNS,
           data: projectsData,
         },
       ],

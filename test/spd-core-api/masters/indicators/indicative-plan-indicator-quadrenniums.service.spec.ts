@@ -15,6 +15,7 @@ describe('IndicativePlanIndicatorQuadrenniumsService', () => {
             create: jest.fn().mockImplementation((dto: any) => ({ ...dto })),
             save: jest.fn().mockImplementation((entity: any) => Promise.resolve({ ...entity, id: 'q-1', startYear: entity.startYear ?? 2024, endYear: entity.endYear ?? 2027 })),
             findOne: jest.fn().mockResolvedValue(mockQuad),
+            preload: jest.fn().mockResolvedValue(mockQuad),
             find: jest.fn().mockResolvedValue([mockQuad]),
             remove: jest.fn().mockResolvedValue(undefined),
         };
@@ -89,23 +90,26 @@ describe('IndicativePlanIndicatorQuadrenniumsService', () => {
     describe('update', () => {
         it('should update a quadrennium', async () => {
             const dto = { value: 600 } as any;
+            mockQuadRepo.preload.mockResolvedValue({ ...mockQuad, value: 600 });
             mockQuadRepo.save.mockResolvedValue({ ...mockQuad, value: 600 });
 
             const result = await service.update('q-1', dto);
 
+            expect(mockQuadRepo.preload).toHaveBeenCalledWith({ id: 'q-1', ...dto });
             expect(mockQuadRepo.save).toHaveBeenCalled();
             expect(mockAuditLog.logSuccess).toHaveBeenCalled();
             expect(result.value).toBe(600);
         });
 
         it('should throw NotFoundException if not found', async () => {
-            mockQuadRepo.findOne.mockResolvedValue(null);
+            mockQuadRepo.preload.mockResolvedValue(null);
 
             await expect(service.update('bad-id', { value: 600 } as any))
                 .rejects.toThrow(NotFoundException);
         });
 
         it('should throw BadRequestException on duplicate key', async () => {
+            mockQuadRepo.preload.mockResolvedValue(mockQuad);
             mockQuadRepo.save.mockRejectedValue({ code: '23505' });
 
             await expect(service.update('q-1', { value: 600 } as any))

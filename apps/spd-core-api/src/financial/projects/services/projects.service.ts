@@ -8,6 +8,7 @@ import { AuditLogService } from "@common/cosmosdb/audit-log.service";
 import { AuditAction, AuditEntityType } from "@common/types/audit.types";
 import { ErrorCodes } from "@common/errors/error-codes";
 import { SYSTEM_NAME } from "../../../shared/constants";
+import { executeFindForSelect, findAllPaginatedByParent } from "../../../shared/helpers";
 
 @Injectable()
 export class ProjectsService {
@@ -53,67 +54,30 @@ export class ProjectsService {
         sortBy?: string,
         sortOrder?: "ASC" | "DESC"
     ) {
-        const skip = (page - 1) * limit;
-
-        const validSortOrder =
-            sortOrder === "ASC" || sortOrder === "DESC" ? sortOrder : "DESC";
-
-        const sortableFields = [
-            "createAt",
-            "updateAt",
-            "code",
-            "name",
-            "initialBudget",
-            "currentBudget",
-            "execution",
-
-            "origin",
-            "state",
-            "dependency.code",
-            "dependency.name"
-        ];
-        const validSortBy =
-            sortBy && sortableFields.includes(sortBy) ? sortBy : "createAt";
-
         const queryBuilder = this.repo
             .createQueryBuilder("project")
             .leftJoin("project.dependency", "dependency")
             .addSelect(["project", "dependency.id", "dependency.code", "dependency.name"]);
 
-        if (search) {
-            queryBuilder.where(new Brackets((qb) => {
-                qb.where("project.code LIKE :search", { search: `%${search}%` })
-                    .orWhere("project.name LIKE :search", { search: `%${search}%` })
-                    .orWhere("project.origin LIKE :search", { search: `%${search}%` })
-                    .orWhere("dependency.code LIKE :search", { search: `%${search}%` })
-                    .orWhere("dependency.name LIKE :search", { search: `%${search}%` });
-            }));
-        }
-
-        if (validSortBy.includes(".")) {
-            const [relation, field] = validSortBy.split(".");
-            queryBuilder.orderBy(`${relation}.${field}`, validSortOrder);
-        } else {
-            queryBuilder.orderBy(`project.${validSortBy}`, validSortOrder);
-        }
-
-        queryBuilder.skip(skip).take(limit);
-
-        const [data, total] = await queryBuilder.getManyAndCount();
-
-        const totalPages = Math.ceil(total / limit);
-
-        return {
-            data,
-            meta: {
-                total,
-                page,
-                limit,
-                totalPages,
-                hasNextPage: page < totalPages,
-                hasPreviousPage: page > 1,
+        return findAllPaginatedByParent({
+            queryBuilder,
+            alias: "project",
+            applySearch: (qb, s) => {
+                qb.where(new Brackets((b) => {
+                    b.where("project.code LIKE :search", { search: `%${s}%` })
+                        .orWhere("project.name LIKE :search", { search: `%${s}%` })
+                        .orWhere("project.origin LIKE :search", { search: `%${s}%` })
+                        .orWhere("dependency.code LIKE :search", { search: `%${s}%` })
+                        .orWhere("dependency.name LIKE :search", { search: `%${s}%` });
+                }));
             },
-        };
+            sortableFields: ["createAt", "updateAt", "code", "name", "initialBudget", "currentBudget", "execution", "origin", "state", "dependency.code", "dependency.name"],
+            page,
+            limit,
+            search,
+            sortBy,
+            sortOrder,
+        });
     }
 
     async findOne(id: string) {
@@ -135,29 +99,20 @@ export class ProjectsService {
             .select(["project.id", "project.code", "project.name"])
             .where("project.state = :state", { state: true });
 
-        if (search) {
-            queryBuilder.andWhere(
-                new Brackets((qb) => {
-                    qb.where("project.code ILIKE :search", { search: `%${search}%` })
-                        .orWhere("project.name ILIKE :search", { search: `%${search}%` });
-                })
-            );
-        }
-
-        const [data, total] = await queryBuilder
-            .orderBy("project.name", "ASC")
-            .skip(offset)
-            .take(limit)
-            .getManyAndCount();
-
-        return {
-            data,
-            meta: {
-                total,
-                limit,
-                offset,
-                hasMore: offset + data.length < total,
+        return executeFindForSelect({
+            queryBuilder,
+            applySearch: (qb, s) => {
+                qb.andWhere(
+                    new Brackets((b) => {
+                        b.where("project.code ILIKE :search", { search: `%${s}%` })
+                            .orWhere("project.name ILIKE :search", { search: `%${s}%` });
+                    })
+                );
             },
-        };
+            orderBy: [["project.name", "ASC"]],
+            search,
+            limit,
+            offset,
+        });
     }
 }

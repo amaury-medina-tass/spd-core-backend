@@ -1,164 +1,33 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, Brackets } from "typeorm";
+import { Repository } from "typeorm";
 import { AuditLogService } from "@common/cosmosdb/audit-log.service";
 import { AuditAction, AuditEntityType } from "@common/types/audit.types";
 import { ErrorCodes } from "@common/errors/error-codes";
-import { SYSTEM_NAME } from "../../../../shared/constants";
 import { IndicativePlanIndicatorGoal } from "../../entities/indicative-plan/indicative-plan-indicator-goal.entity";
 import { IndicativePlanIndicator } from "../../entities/indicative-plan/indicative-plan-indicator.entity";
-import { CreateIndicativePlanIndicatorGoalDto, UpdateIndicativePlanIndicatorGoalDto } from "../../dtos/indicative-plan/create-indicative-plan-indicator-goal.dto";
-
+import { BaseIndicatorGoalsService, IndicatorGoalsConfig } from "../base";
 
 @Injectable()
-export class IndicativePlanIndicatorGoalsService {
-    private readonly logger = new Logger(IndicativePlanIndicatorGoalsService.name);
+export class IndicativePlanIndicatorGoalsService extends BaseIndicatorGoalsService<IndicativePlanIndicatorGoal, IndicativePlanIndicator> {
+    protected readonly logger = new Logger(IndicativePlanIndicatorGoalsService.name);
+    protected readonly config: IndicatorGoalsConfig = {
+        indicatorNotFoundCode: ErrorCodes.INDICATIVE_INDICATOR_NOT_FOUND,
+        goalNotFoundCode: ErrorCodes.INDICATIVE_INDICATOR_GOAL_NOT_FOUND,
+        auditCreateAction: AuditAction.INDICATIVE_INDICATOR_GOAL_CREATED,
+        auditUpdateAction: AuditAction.INDICATIVE_INDICATOR_GOAL_UPDATED,
+        auditDeleteAction: AuditAction.INDICATIVE_INDICATOR_GOAL_DELETED,
+        auditEntityType: AuditEntityType.INDICATIVE_INDICATOR_GOAL,
+        goalLabel: "Indicative Goal",
+    };
 
     constructor(
         @InjectRepository(IndicativePlanIndicatorGoal)
-        private readonly goalRepository: Repository<IndicativePlanIndicatorGoal>,
+        protected readonly goalRepository: Repository<IndicativePlanIndicatorGoal>,
         @InjectRepository(IndicativePlanIndicator)
-        private readonly indicatorRepository: Repository<IndicativePlanIndicator>,
-        private readonly auditLog: AuditLogService,
-    ) { }
-
-    async create(createDto: CreateIndicativePlanIndicatorGoalDto): Promise<IndicativePlanIndicatorGoal> {
-        const { indicatorId } = createDto;
-
-        const indicator = await this.indicatorRepository.findOne({ where: { id: indicatorId } });
-        if (!indicator) {
-            throw new NotFoundException({ message: `Indicador con ID ${indicatorId} no encontrado`, code: ErrorCodes.INDICATIVE_INDICATOR_NOT_FOUND });
-        }
-
-        try {
-            const goal = this.goalRepository.create(createDto);
-            const saved = await this.goalRepository.save(goal);
-
-            await this.auditLog.logSuccess(AuditAction.INDICATIVE_INDICATOR_GOAL_CREATED, AuditEntityType.INDICATIVE_INDICATOR_GOAL, saved.id, {
-                entityName: `Indicative Goal - Year ${saved.year}`,
-                system: SYSTEM_NAME,
-                metadata: { indicatorId, year: saved.year, value: saved.value },
-            });
-
-            return saved;
-        } catch (error) {
-            this.handleDBExceptions(error);
-            throw error;
-        }
-    }
-
-    async findAllPaginated(
-        indicatorId: string,
-        page: number = 1,
-        limit: number = 10,
-        search?: string,
-        sortBy?: string,
-        sortOrder?: "ASC" | "DESC"
+        protected readonly parentRepository: Repository<IndicativePlanIndicator>,
+        protected readonly auditLog: AuditLogService,
     ) {
-        const skip = (page - 1) * limit;
-
-        const validSortOrder =
-            sortOrder === "ASC" || sortOrder === "DESC" ? sortOrder : "DESC";
-
-        const sortableFields = [
-            "createAt",
-            "updateAt",
-            "year",
-            "value",
-            "indicator.code",
-            "indicator.name",
-        ];
-        const validSortBy =
-            sortBy && sortableFields.includes(sortBy) ? sortBy : "createAt";
-
-        const queryBuilder = this.goalRepository
-            .createQueryBuilder("g")
-            .leftJoin("g.indicator", "indicator")
-            .where("indicator.id = :indicatorId", { indicatorId })
-            .addSelect(["g"]);
-
-        if (search) {
-            queryBuilder.andWhere(new Brackets((qb) => {
-                qb.where("indicator.code ILIKE :search", { search: `%${search}%` })
-                    .orWhere("indicator.name ILIKE :search", { search: `%${search}%` })
-                    .orWhere("g.year::text ILIKE :search", { search: `%${search}%` });
-            }));
-        }
-
-        if (validSortBy.includes(".")) {
-            const [relation, field] = validSortBy.split(".");
-            queryBuilder.orderBy(`${relation}.${field}`, validSortOrder);
-        } else {
-            queryBuilder.orderBy(`g.${validSortBy}`, validSortOrder);
-        }
-
-        queryBuilder.skip(skip).take(limit);
-
-        const [data, total] = await queryBuilder.getManyAndCount();
-
-        const totalPages = Math.ceil(total / limit);
-
-        return {
-            data,
-            meta: {
-                total,
-                page,
-                limit,
-                totalPages,
-                hasNextPage: page < totalPages,
-                hasPreviousPage: page > 1,
-            },
-        };
-    }
-
-    async findAllByIndicator(indicatorId: string): Promise<IndicativePlanIndicatorGoal[]> {
-        return this.goalRepository.find({
-            where: { indicatorId },
-            order: { year: "ASC" },
-        });
-    }
-
-    async findOne(id: string): Promise<IndicativePlanIndicatorGoal> {
-        const goal = await this.goalRepository.findOne({ where: { id } });
-        if (!goal) {
-            throw new NotFoundException({ message: `Goal with ID ${id} not found`, code: ErrorCodes.INDICATIVE_INDICATOR_GOAL_NOT_FOUND });
-        }
-        return goal;
-    }
-
-    async update(id: string, updateDto: UpdateIndicativePlanIndicatorGoalDto): Promise<IndicativePlanIndicatorGoal> {
-        const goal = await this.findOne(id);
-        Object.assign(goal, updateDto);
-        try {
-            const saved = await this.goalRepository.save(goal);
-
-            await this.auditLog.logSuccess(AuditAction.INDICATIVE_INDICATOR_GOAL_UPDATED, AuditEntityType.INDICATIVE_INDICATOR_GOAL, saved.id, {
-                entityName: `Indicative Goal - Year ${saved.year}`,
-                system: SYSTEM_NAME,
-                metadata: { indicatorId: saved.indicatorId, year: saved.year, value: saved.value },
-            });
-
-            return saved;
-        } catch (error) {
-            this.handleDBExceptions(error);
-            throw error;
-        }
-    }
-
-    async remove(id: string): Promise<void> {
-        const goal = await this.findOne(id);
-        await this.goalRepository.remove(goal);
-
-        await this.auditLog.logSuccess(AuditAction.INDICATIVE_INDICATOR_GOAL_DELETED, AuditEntityType.INDICATIVE_INDICATOR_GOAL, id, {
-            entityName: `Indicative Goal - Year ${goal.year}`,
-            system: SYSTEM_NAME,
-        });
-    }
-
-    private handleDBExceptions(error: any) {
-        if (error.code === "23505") {
-            throw new BadRequestException("Ya existe una meta para este indicador y año.");
-        }
-        this.logger.error(error);
+        super();
     }
 }

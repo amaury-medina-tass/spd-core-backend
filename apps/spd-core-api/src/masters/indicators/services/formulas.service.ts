@@ -117,112 +117,64 @@ export class FormulasService {
   }
 
   private async getActionPlanData(indicatorId: string, year: number) {
-    const indicator = await this.actionIndicatorRepo.findOne({
+    return this.getPlanData({
+      indicatorRepo: this.actionIndicatorRepo,
+      variableRelationRepo: this.variableActionRelationRepo,
+      indicatorRelations: ['unitMeasure', 'formulas'],
+      goalEntity: ActionPlanIndicatorGoal,
+      quadrenniumEntity: ActionPlanIndicatorQuadrennium,
+      notFoundCode: ErrorCodes.ACTION_INDICATOR_NOT_FOUND,
+      notFoundLabel: 'Action Plan Indicator',
+    }, indicatorId, year);
+  }
+
+  private async getIndicativePlanData(indicatorId: string, year: number) {
+    return this.getPlanData({
+      indicatorRepo: this.indicativeIndicatorRepo,
+      variableRelationRepo: this.variableIndicativeRelationRepo,
+      indicatorRelations: ['unitMeasure', 'indicatorType', 'direction', 'formulas'],
+      goalEntity: IndicativePlanIndicatorGoal,
+      quadrenniumEntity: IndicativePlanIndicatorQuadrennium,
+      notFoundCode: ErrorCodes.INDICATIVE_INDICATOR_NOT_FOUND,
+      notFoundLabel: 'Indicative Plan Indicator',
+    }, indicatorId, year);
+  }
+
+  private async getPlanData(
+    config: {
+      indicatorRepo: Repository<any>;
+      variableRelationRepo: Repository<any>;
+      indicatorRelations: string[];
+      goalEntity: any;
+      quadrenniumEntity: any;
+      notFoundCode: string;
+      notFoundLabel: string;
+    },
+    indicatorId: string,
+    year: number,
+  ) {
+    const indicator = await config.indicatorRepo.findOne({
       where: { id: indicatorId },
-      relations: ['unitMeasure', 'formulas'],
+      relations: config.indicatorRelations,
     });
 
     if (!indicator) {
       throw new NotFoundException({
-        message: `Action Plan Indicator with ID ${indicatorId} not found`,
-        code: ErrorCodes.ACTION_INDICATOR_NOT_FOUND,
+        message: `${config.notFoundLabel} with ID ${indicatorId} not found`,
+        code: config.notFoundCode,
       });
     }
 
-    // Fetch goals and quadrenniums manually if they are separate entities and no relation is set up in entity
-    // However, usually they are set up. Assuming they are accessible via query builder or eager load if relations exist.
-    // Based on file names `action-plan-indicator-goal.entity.ts`, I assume relation exists.
-    // Let's refetch with relations if my previous assumption was correct or check entity.
-    // I'll use a separate query to be safe or assuming the relation name is 'goals' and 'quadrenniums' if standard naming.
-    // Given I cannot see the relation definitions inside `ActionPlanIndicator` right now (I only saw the file list but not full content of all files),
-    // I will try to fetch them assuming standard naming or use query builder.
-    // Actually, let's look at `ActionPlanIndicator` content I saw earlier (Step 60).
-    // It DOES NOT have `goals` or `quadrenniums` relations defined in the content I saw!
-    // It only has `unitMeasure`.
-    // Wait, I saw `action-plan-indicator-goal.entity.ts` exist.
-    // This implies the relation is likely on the Goal entity pointing TO the indicator.
-    // I need to fetch goals/quadrenniums separately for the indicator too.
-
     const [indicatorGoals, indicatorQuadrenniums] = await Promise.all([
-      this.actionIndicatorRepo.manager.find(ActionPlanIndicatorGoal, {
+      config.indicatorRepo.manager.find(config.goalEntity, {
         where: { indicatorId, year },
       }),
-      this.actionIndicatorRepo.manager.find(ActionPlanIndicatorQuadrennium, {
+      config.indicatorRepo.manager.find(config.quadrenniumEntity, {
         where: { indicatorId },
       }),
     ]);
 
-    const variableRelations = await this.variableActionRelationRepo.find({
-      where: { indicatorId },
-      relations: ['variable'],
-    });
-
-    const variableIds = variableRelations.map((vr) => vr.variableId);
-
-    let variableGoals: VariableGoal[] = [];
-    let variableQuadrenniums: VariableQuadrennium[] = [];
-
-    if (variableIds.length > 0) {
-      [variableGoals, variableQuadrenniums] = await Promise.all([
-        this.variableGoalRepo.find({
-          where: { variableId: In(variableIds), year },
-        }),
-        this.variableQuadrenniumRepo.find({
-          where: { variableId: In(variableIds) },
-        }),
-      ]);
-    }
-
-    const variables = variableRelations.map((vr) => {
-      const v = vr.variable;
-      return {
-        id: v.id,
-        code: v.code,
-        name: v.name,
-        goals: variableGoals.filter((g) => g.variableId === v.id),
-        quadrenniums: variableQuadrenniums.filter((q) => q.variableId === v.id),
-      };
-    });
-
-    return {
-      indicator: {
-        ...indicator,
-        goals: indicatorGoals,
-        quadrenniums: indicatorQuadrenniums,
-      },
-      variables,
-    };
-  }
-
-  private async getIndicativePlanData(indicatorId: string, year: number) {
-    const indicator = await this.indicativeIndicatorRepo.findOne({
-      where: { id: indicatorId },
-      relations: [
-        'unitMeasure',
-        'indicatorType',
-        'direction',
-        'formulas'
-      ],
-    });
-
-    if (!indicator) {
-      throw new NotFoundException({
-        message: `Indicative Plan Indicator with ID ${indicatorId} not found`,
-        code: ErrorCodes.INDICATIVE_INDICATOR_NOT_FOUND,
-      });
-    }
-
-    const [indicatorGoals, indicatorQuadrenniums] = await Promise.all([
-      this.indicativeIndicatorRepo.manager.find(IndicativePlanIndicatorGoal, {
-        where: { indicatorId, year },
-      }),
-      this.indicativeIndicatorRepo.manager.find(
-        IndicativePlanIndicatorQuadrennium,
-        { where: { indicatorId } },
-      ),
-    ]);
-
-    const variableRelations = await this.variableIndicativeRelationRepo.find({
+    const variableRelations = await config.variableRelationRepo.find({
       where: { indicatorId },
       relations: ['variable'],
     });

@@ -5,32 +5,21 @@ import { RequirePermission } from "../../../common/decorators/require-permission
 import { ResponseMessage } from "../../../common/decorators/response-message.decorator";
 import { MasterContractsService } from "../services/master-contracts.service";
 import { CdpPositionsService } from "../../cdps/services/cdp-positions.service";
+import { BaseReadPaginatedController } from "../../../shared/controllers";
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
+@RequirePermission("/financial/master-contracts", "READ")
 @Controller("financial/master-contracts")
-export class MasterContractsController {
-    constructor(
-        private readonly service: MasterContractsService,
-        private readonly cdpPositionsService: CdpPositionsService
-    ) { }
+export class MasterContractsController extends BaseReadPaginatedController {
+    protected readonly service: MasterContractsService;
+    protected readonly entityLabel = "Contratos marco";
 
-    @Get()
-    @RequirePermission("/financial/master-contracts", "READ")
-    @ResponseMessage("Listado de contratos marco")
-    findAll(
-        @Query("page") page: number,
-        @Query("limit") limit: number,
-        @Query("search") search: string,
-        @Query("sortBy") sortBy: string,
-        @Query("sortOrder") sortOrder: "ASC" | "DESC"
+    constructor(
+        service: MasterContractsService,
+        private readonly cdpPositionsService: CdpPositionsService,
     ) {
-        return this.service.findAllPaginated(
-            page ? +page : 1,
-            limit ? +limit : 10,
-            search,
-            sortBy,
-            sortOrder
-        );
+        super();
+        this.service = service;
     }
 
     @Get(":id/cdp-positions")
@@ -42,7 +31,7 @@ export class MasterContractsController {
         @Query("limit") limit: number,
         @Query("search") search: string,
         @Query("sortBy") sortBy: string,
-        @Query("sortOrder") sortOrder: "ASC" | "DESC"
+        @Query("sortOrder") sortOrder: "ASC" | "DESC",
     ) {
         return this.cdpPositionsService.findForTable(
             page ? +page : 1,
@@ -50,13 +39,7 @@ export class MasterContractsController {
             search,
             sortBy,
             sortOrder,
-            id // masterContractId
+            id,
         );
-    }
-    @Get(":id")
-    @RequirePermission("/financial/master-contracts", "READ")
-    @ResponseMessage("Detalle del contrato marco")
-    findOne(@Param("id") id: string) {
-        return this.service.findOne(id);
     }
 }

@@ -18,14 +18,14 @@ export class PreviousStudiesController {
         @Query("limit") limit: number,
         @Query("search") search: string,
         @Query("sortBy") sortBy: string,
-        @Query("sortOrder") sortOrder: "ASC" | "DESC"
+        @Query("sortOrder") sortOrder: "ASC" | "DESC",
     ) {
         return this.service.findAllPaginated(
             page ? +page : 1,
             limit ? +limit : 10,
             search,
             sortBy,
-            sortOrder
+            sortOrder,
         );
     }
 }

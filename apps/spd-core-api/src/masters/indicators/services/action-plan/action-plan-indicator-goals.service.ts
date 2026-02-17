@@ -1,164 +1,33 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, Brackets } from "typeorm";
+import { Repository } from "typeorm";
 import { AuditLogService } from "@common/cosmosdb/audit-log.service";
 import { AuditAction, AuditEntityType } from "@common/types/audit.types";
 import { ErrorCodes } from "@common/errors/error-codes";
-import { SYSTEM_NAME } from "../../../../shared/constants";
 import { ActionPlanIndicatorGoal } from "../../entities/action-plan/action-plan-indicator-goal.entity";
 import { ActionPlanIndicator } from "../../entities/action-plan/action-plan-indicator.entity";
-import { CreateActionPlanIndicatorGoalDto, UpdateActionPlanIndicatorGoalDto } from "../../dtos/action-plan/create-action-plan-indicator-goal.dto";
-
+import { BaseIndicatorGoalsService, IndicatorGoalsConfig } from "../base";
 
 @Injectable()
-export class ActionPlanIndicatorGoalsService {
-    private readonly logger = new Logger(ActionPlanIndicatorGoalsService.name);
+export class ActionPlanIndicatorGoalsService extends BaseIndicatorGoalsService<ActionPlanIndicatorGoal, ActionPlanIndicator> {
+    protected readonly logger = new Logger(ActionPlanIndicatorGoalsService.name);
+    protected readonly config: IndicatorGoalsConfig = {
+        indicatorNotFoundCode: ErrorCodes.ACTION_INDICATOR_NOT_FOUND,
+        goalNotFoundCode: ErrorCodes.ACTION_INDICATOR_GOAL_NOT_FOUND,
+        auditCreateAction: AuditAction.ACTION_INDICATOR_GOAL_CREATED,
+        auditUpdateAction: AuditAction.ACTION_INDICATOR_GOAL_UPDATED,
+        auditDeleteAction: AuditAction.ACTION_INDICATOR_GOAL_DELETED,
+        auditEntityType: AuditEntityType.ACTION_INDICATOR_GOAL,
+        goalLabel: "Action Goal",
+    };
 
     constructor(
         @InjectRepository(ActionPlanIndicatorGoal)
-        private readonly goalRepository: Repository<ActionPlanIndicatorGoal>,
+        protected readonly goalRepository: Repository<ActionPlanIndicatorGoal>,
         @InjectRepository(ActionPlanIndicator)
-        private readonly indicatorRepository: Repository<ActionPlanIndicator>,
-        private readonly auditLog: AuditLogService,
-    ) { }
-
-    async create(createDto: CreateActionPlanIndicatorGoalDto): Promise<ActionPlanIndicatorGoal> {
-        const { indicatorId } = createDto;
-
-        const indicator = await this.indicatorRepository.findOne({ where: { id: indicatorId } });
-        if (!indicator) {
-            throw new NotFoundException({ message: `Indicador con ID ${indicatorId} no encontrado`, code: ErrorCodes.ACTION_INDICATOR_NOT_FOUND });
-        }
-
-        try {
-            const goal = this.goalRepository.create(createDto);
-            const saved = await this.goalRepository.save(goal);
-
-            await this.auditLog.logSuccess(AuditAction.ACTION_INDICATOR_GOAL_CREATED, AuditEntityType.ACTION_INDICATOR_GOAL, saved.id, {
-                entityName: `Action Goal - Year ${saved.year}`,
-                system: SYSTEM_NAME,
-                metadata: { indicatorId, year: saved.year, value: saved.value },
-            });
-
-            return saved;
-        } catch (error) {
-            this.handleDBExceptions(error);
-            throw error;
-        }
-    }
-
-    async findAllPaginated(
-        indicatorId: string,
-        page: number = 1,
-        limit: number = 10,
-        search?: string,
-        sortBy?: string,
-        sortOrder?: "ASC" | "DESC"
+        protected readonly parentRepository: Repository<ActionPlanIndicator>,
+        protected readonly auditLog: AuditLogService,
     ) {
-        const skip = (page - 1) * limit;
-
-        const validSortOrder =
-            sortOrder === "ASC" || sortOrder === "DESC" ? sortOrder : "DESC";
-
-        const sortableFields = [
-            "createAt",
-            "updateAt",
-            "year",
-            "value",
-            "indicator.code",
-            "indicator.name",
-        ];
-        const validSortBy =
-            sortBy && sortableFields.includes(sortBy) ? sortBy : "createAt";
-
-        const queryBuilder = this.goalRepository
-            .createQueryBuilder("g")
-            .leftJoin("g.indicator", "indicator")
-            .where("indicator.id = :indicatorId", { indicatorId })
-            .addSelect(["g"]);
-
-        if (search) {
-            queryBuilder.andWhere(new Brackets((qb) => {
-                qb.where("indicator.code ILIKE :search", { search: `%${search}%` })
-                    .orWhere("indicator.name ILIKE :search", { search: `%${search}%` })
-                    .orWhere("g.year::text ILIKE :search", { search: `%${search}%` });
-            }));
-        }
-
-        if (validSortBy.includes(".")) {
-            const [relation, field] = validSortBy.split(".");
-            queryBuilder.orderBy(`${relation}.${field}`, validSortOrder);
-        } else {
-            queryBuilder.orderBy(`g.${validSortBy}`, validSortOrder);
-        }
-
-        queryBuilder.skip(skip).take(limit);
-
-        const [data, total] = await queryBuilder.getManyAndCount();
-
-        const totalPages = Math.ceil(total / limit);
-
-        return {
-            data,
-            meta: {
-                total,
-                page,
-                limit,
-                totalPages,
-                hasNextPage: page < totalPages,
-                hasPreviousPage: page > 1,
-            },
-        };
-    }
-
-    async findAllByIndicator(indicatorId: string): Promise<ActionPlanIndicatorGoal[]> {
-        return this.goalRepository.find({
-            where: { indicatorId },
-            order: { year: "ASC" },
-        });
-    }
-
-    async findOne(id: string): Promise<ActionPlanIndicatorGoal> {
-        const goal = await this.goalRepository.findOne({ where: { id } });
-        if (!goal) {
-            throw new NotFoundException({ message: `Goal with ID ${id} not found`, code: ErrorCodes.ACTION_INDICATOR_GOAL_NOT_FOUND });
-        }
-        return goal;
-    }
-
-    async update(id: string, updateDto: UpdateActionPlanIndicatorGoalDto): Promise<ActionPlanIndicatorGoal> {
-        const goal = await this.findOne(id);
-        Object.assign(goal, updateDto);
-        try {
-            const saved = await this.goalRepository.save(goal);
-
-            await this.auditLog.logSuccess(AuditAction.ACTION_INDICATOR_GOAL_UPDATED, AuditEntityType.ACTION_INDICATOR_GOAL, saved.id, {
-                entityName: `Action Goal - Year ${saved.year}`,
-                system: SYSTEM_NAME,
-                metadata: { indicatorId: saved.indicatorId, year: saved.year, value: saved.value },
-            });
-
-            return saved;
-        } catch (error) {
-            this.handleDBExceptions(error);
-            throw error;
-        }
-    }
-
-    async remove(id: string): Promise<void> {
-        const goal = await this.findOne(id);
-        await this.goalRepository.remove(goal);
-
-        await this.auditLog.logSuccess(AuditAction.ACTION_INDICATOR_GOAL_DELETED, AuditEntityType.ACTION_INDICATOR_GOAL, id, {
-            entityName: `Action Goal - Year ${goal.year}`,
-            system: SYSTEM_NAME,
-        });
-    }
-
-    private handleDBExceptions(error: any) {
-        if (error.code === "23505") {
-            throw new BadRequestException("Ya existe una meta para este indicador y año.");
-        }
-        this.logger.error(error);
+        super();
     }
 }

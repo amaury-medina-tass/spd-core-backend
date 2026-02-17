@@ -5,7 +5,7 @@ scanner({
   options: {
     'sonar.projectKey': 'spd-core-backend-key',
     'sonar.projectName': 'SPD Core Backend',
-    'sonar.token': 'sqp_f52e006a8231aa057f5089d0793c9b9ff6860671',
+    'sonar.token': 'sqp_82288cd50c81137ec92e4fd9fa1e72970e3488d4',
     // Apuntamos a las carpetas raíz del monorepo (Apps y Libs)
     'sonar.sources': 'apps,libs',
     'sonar.tests': 'apps,libs',

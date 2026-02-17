@@ -5,6 +5,7 @@ import { AuditLogService } from "@common/cosmosdb/audit-log.service";
 import { AuditAction, AuditEntityType } from "@common/types/audit.types";
 import { ErrorCodes } from "@common/errors/error-codes";
 import { SYSTEM_NAME } from "../../../shared/constants";
+import { calculateSkip, buildPaginatedMeta, findAllPaginatedByParent } from "../../../shared/helpers";
 import { CreateVariableAdvanceDto } from "../dtos/create-variable-advance.dto";
 import { VariableAdvance } from "../entities/variable-advance.entity";
 import { VariableContextualAccumulator } from "../entities/variable-contextual-accumulator.entity";
@@ -448,61 +449,29 @@ export class VariableAdvancesService {
         sortBy?: string,
         sortOrder?: "ASC" | "DESC"
     ) {
-        const skip = (page - 1) * limit;
-
-        const validSortOrder =
-            sortOrder === "ASC" || sortOrder === "DESC" ? sortOrder : "DESC";
-
-        const sortableFields = [
-            "createAt",
-            "updateAt",
-            "year",
-            "month",
-            "value",
-            "variable.code",
-            "variable.name",
-        ];
-        const validSortBy =
-            sortBy && sortableFields.includes(sortBy) ? sortBy : "createAt";
-
         const queryBuilder = this.variableAdvanceRepository
             .createQueryBuilder("va")
             .leftJoin("va.variable", "variable")
             .where("variable.id = :variableId", { variableId })
             .addSelect(["va"]);
 
-        if (search) {
-            queryBuilder.andWhere(new Brackets((qb) => {
-                qb.where("variable.code ILIKE :search", { search: `%${search}%` })
-                    .orWhere("variable.name ILIKE :search", { search: `%${search}%` })
-                    .orWhere("va.year::text ILIKE :search", { search: `%${search}%` });
-            }));
-        }
-
-        if (validSortBy.includes(".")) {
-            const [relation, field] = validSortBy.split(".");
-            queryBuilder.orderBy(`${relation}.${field}`, validSortOrder);
-        } else {
-            queryBuilder.orderBy(`va.${validSortBy}`, validSortOrder);
-        }
-
-        queryBuilder.skip(skip).take(limit);
-
-        const [data, total] = await queryBuilder.getManyAndCount();
-
-        const totalPages = Math.ceil(total / limit);
-
-        return {
-            data,
-            meta: {
-                total,
-                page,
-                limit,
-                totalPages,
-                hasNextPage: page < totalPages,
-                hasPreviousPage: page > 1,
+        return findAllPaginatedByParent({
+            queryBuilder,
+            alias: "va",
+            applySearch: (qb, s) => {
+                qb.andWhere(new Brackets((b) => {
+                    b.where("variable.code ILIKE :search", { search: `%${s}%` })
+                        .orWhere("variable.name ILIKE :search", { search: `%${s}%` })
+                        .orWhere("va.year::text ILIKE :search", { search: `%${s}%` });
+                }));
             },
-        };
+            sortableFields: ["createAt", "updateAt", "year", "month", "value", "variable.code", "variable.name"],
+            page,
+            limit,
+            search,
+            sortBy,
+            sortOrder,
+        });
     }
 
     async findOne(id: string): Promise<VariableAdvance> {
@@ -616,85 +585,17 @@ export class VariableAdvancesService {
         limit: number = 10,
         search?: string
     ) {
-        // 1. Get Variables query linked to this Action Indicator
-        const queryBuilder = this.variableActionRelationRepository.createQueryBuilder("var")
-            .innerJoinAndSelect("var.variable", "v")
-            .leftJoinAndSelect(VariableContextualAccumulator, "vca", "vca.actionRelationId = var.id")
-            .where("var.indicatorId = :indicatorId", { indicatorId });
-
-        // 2. Apply Search
-        if (search) {
-            queryBuilder.andWhere(new Brackets(qb => {
-                qb.where("v.code ILIKE :search", { search: `%${search}%` })
-                    .orWhere("v.name ILIKE :search", { search: `%${search}%` });
-            }));
-        }
-
-        // 3. Pagination
-        const total = await queryBuilder.getCount();
-        const totalPages = Math.ceil(total / limit);
-
-        const variablesData = await queryBuilder
-            .select([
-                "v.id",
-                "v.name",
-                "v.code",
-                "vca.calculatedValue",
-                "vca.lastCalculationDate",
-                "var.id",
-                "var.variableId",
-                "var.indicatorId"
-            ])
-            .skip((page - 1) * limit)
-            .take(limit)
-            .getRawMany();
-
-        // 4. Fetch Advances for these variables
-        if (variablesData.length === 0) {
-            return {
-                data: [],
-                meta: { total, page, limit, totalPages, hasNextPage: false, hasPreviousPage: false }
-            };
-        }
-
-        const variableIds = variablesData.map(v => v.v_id);
-
-        const advancesQuery = this.variableAdvanceRepository.createQueryBuilder("va")
-            .where("va.variableId IN (:...variableIds)", { variableIds });
-
-        if (year) {
-            advancesQuery.andWhere("va.year = :year", { year });
-        }
-
-        advancesQuery.orderBy("va.year", "ASC").addOrderBy("va.month", "ASC");
-
-        const advances = await advancesQuery.getMany();
-
-        // 5. Merge Data
-        const data = variablesData.map(data => {
-            const variableAdvances = advances.filter(a => a.variableId === data.v_id);
-            return {
-                variableId: data.v_id,
-                variableName: data.v_name,
-                variableCode: data.v_code,
-                calculatedValue: data.vca_calculated_value ? Number.parseFloat(data.vca_calculated_value) : null,
-                lastCalculationDate: data.vca_last_calculation_date,
-                actionRelationId: data.var_id,
-                advances: variableAdvances
-            };
+        return this.findAllByIndicatorRelation({
+            relationRepo: this.variableActionRelationRepository,
+            alias: "var",
+            accumulatorJoin: "vca.actionRelationId = var.id",
+            relationIdField: "actionRelationId",
+            indicatorId,
+            year,
+            page,
+            limit,
+            search,
         });
-
-        return {
-            data,
-            meta: {
-                total,
-                page,
-                limit,
-                totalPages,
-                hasNextPage: page < totalPages,
-                hasPreviousPage: page > 1,
-            }
-        };
     }
 
     async findAllByIndicativeIndicator(
@@ -704,14 +605,37 @@ export class VariableAdvancesService {
         limit: number = 10,
         search?: string
     ) {
-        // 1. Get Variables query linked to this Indicative Indicator
-        const queryBuilder = this.variableIndicativeRelationRepository.createQueryBuilder("vir")
-            .innerJoinAndSelect("vir.variable", "v")
-            .leftJoinAndSelect(VariableContextualAccumulator, "vca", "vca.indicativeRelationId = vir.id")
-            .where("vir.indicatorId = :indicatorId", { indicatorId });
+        return this.findAllByIndicatorRelation({
+            relationRepo: this.variableIndicativeRelationRepository,
+            alias: "vir",
+            accumulatorJoin: "vca.indicativeRelationId = vir.id",
+            relationIdField: "indicativeRelationId",
+            indicatorId,
+            year,
+            page,
+            limit,
+            search,
+        });
+    }
 
+    private async findAllByIndicatorRelation(config: {
+        relationRepo: Repository<any>;
+        alias: string;
+        accumulatorJoin: string;
+        relationIdField: string;
+        indicatorId: string;
+        year?: number;
+        page: number;
+        limit: number;
+        search?: string;
+    }) {
+        const { relationRepo, alias, accumulatorJoin, relationIdField, indicatorId, year, page, limit, search } = config;
 
-        // 2. Apply Search
+        const queryBuilder = relationRepo.createQueryBuilder(alias)
+            .innerJoinAndSelect(`${alias}.variable`, "v")
+            .leftJoinAndSelect(VariableContextualAccumulator, "vca", accumulatorJoin)
+            .where(`${alias}.indicatorId = :indicatorId`, { indicatorId });
+
         if (search) {
             queryBuilder.andWhere(new Brackets(qb => {
                 qb.where("v.code ILIKE :search", { search: `%${search}%` })
@@ -719,9 +643,7 @@ export class VariableAdvancesService {
             }));
         }
 
-        // 3. Pagination
         const total = await queryBuilder.getCount();
-        const totalPages = Math.ceil(total / limit);
 
         const variablesData = await queryBuilder
             .select([
@@ -730,20 +652,16 @@ export class VariableAdvancesService {
                 "v.code",
                 "vca.calculatedValue",
                 "vca.lastCalculationDate",
-                "vir.id",
-                "vir.variableId",
-                "vir.indicatorId"
+                `${alias}.id`,
+                `${alias}.variableId`,
+                `${alias}.indicatorId`
             ])
-            .skip((page - 1) * limit)
+            .skip(calculateSkip(page, limit))
             .take(limit)
             .getRawMany();
 
-        // 4. Fetch Advances for these variables
         if (variablesData.length === 0) {
-            return {
-                data: [],
-                meta: { total, page, limit, totalPages, hasNextPage: false, hasPreviousPage: false }
-            };
+            return { data: [], meta: buildPaginatedMeta(total, page, limit) };
         }
 
         const variableIds = variablesData.map(v => v.v_id);
@@ -759,31 +677,21 @@ export class VariableAdvancesService {
 
         const advances = await advancesQuery.getMany();
 
-        // 5. Merge Data
-        const data = variablesData.map(data => {
-            const variableAdvances = advances.filter(a => a.variableId === data.v_id);
-            return {
-                variableId: data.v_id,
-                variableName: data.v_name,
-                variableCode: data.v_code,
-                calculatedValue: data.vca_calculated_value ? Number.parseFloat(data.vca_calculated_value) : null,
-                lastCalculationDate: data.vca_last_calculation_date,
-                indicativeRelationId: data.vir_id,
-                advances: variableAdvances
+        const data = variablesData.map(row => {
+            const variableAdvances = advances.filter(a => a.variableId === row.v_id);
+            const result: Record<string, any> = {
+                variableId: row.v_id,
+                variableName: row.v_name,
+                variableCode: row.v_code,
+                calculatedValue: row.vca_calculated_value ? Number.parseFloat(row.vca_calculated_value) : null,
+                lastCalculationDate: row.vca_last_calculation_date,
+                advances: variableAdvances,
             };
+            result[relationIdField] = row[`${alias}_id`];
+            return result;
         });
 
-        return {
-            data,
-            meta: {
-                total,
-                page,
-                limit,
-                totalPages,
-                hasNextPage: page < totalPages,
-                hasPreviousPage: page > 1,
-            }
-        };
+        return { data, meta: buildPaginatedMeta(total, page, limit) };
     }
 
     /**

@@ -76,7 +76,7 @@ describe('VariableQuadrenniumsService', () => {
             const result = await service.findAllPaginated('var-1');
 
             expect(mockRepo.createQueryBuilder).toHaveBeenCalled();
-            expect(mockQb.where).toHaveBeenCalledWith('variable.id = :variableId', { variableId: 'var-1' });
+            expect(mockQb.where).toHaveBeenCalledWith('variable.id = :parentId', { parentId: 'var-1' });
             expect(mockQb.orderBy).toHaveBeenCalledWith('vq.createAt', 'DESC');
             expect(result.data).toHaveLength(1);
         });

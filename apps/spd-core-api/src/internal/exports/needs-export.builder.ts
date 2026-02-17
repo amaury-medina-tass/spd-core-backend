@@ -5,6 +5,7 @@ import { NeedsService } from "../../financial/needs/services/needs.service";
 import { MasterContract } from "../../financial/master-contracts/entities/master-contract.entity";
 import { ContractCdpRelation } from "../../financial/contract-cdp-relations/entities/contract-cdp-relation.entity";
 import { ExportResult } from "./export.types";
+import { getExportDate } from "../../shared/helpers/export-columns.helper";
 
 @Injectable()
 export class NeedsExportBuilder {
@@ -103,7 +104,7 @@ export class NeedsExportBuilder {
       cdpDateIssue: row.cdp?.dateIssue ? new Date(row.cdp.dateIssue).toISOString().slice(0, 10) : "",
     }));
 
-    const now = new Date().toISOString().slice(0, 10);
+    const now = getExportDate();
 
     return {
       fileName: `necesidades-${now}.xlsx`,

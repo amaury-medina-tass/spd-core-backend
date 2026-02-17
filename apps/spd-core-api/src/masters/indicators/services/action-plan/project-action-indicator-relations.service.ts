@@ -5,6 +5,7 @@ import { AuditLogService } from "@common/cosmosdb/audit-log.service";
 import { AuditAction, AuditEntityType } from "@common/types/audit.types";
 import { ErrorCodes } from "@common/errors/error-codes";
 import { SYSTEM_NAME } from "../../../../shared/constants";
+import { findPaginatedRelations } from "../../../../shared/helpers";
 import { ProjectActionIndicatorRelation } from "../../entities/action-plan/project-action-indicator-relation.entity";
 import { ActionPlanIndicator } from "../../entities/action-plan/action-plan-indicator.entity";
 import { Project } from "../../../../financial/projects/entities/project.entity";
@@ -80,56 +81,27 @@ export class ProjectActionIndicatorRelationsService {
         search?: string
     ) {
         await this.ensureIndicatorExists(indicatorId);
-        const skip = (page - 1) * limit;
 
         const associatedIds = (await this.relationRepository.find({
             where: { indicatorId },
             select: ["projectId"]
         })).map(r => r.projectId);
 
-        const query = this.projectRepository.createQueryBuilder("project");
-
-        if (type === "associated") {
-            if (associatedIds.length === 0) {
-                return this.emptyPaginatedResponse(page, limit);
-            }
-            query.where("project.id IN (:...ids)", { ids: associatedIds });
-        } else if (type === "available") {
-            if (associatedIds.length > 0) {
-                query.where("project.id NOT IN (:...ids)", { ids: associatedIds });
-            }
-        }
-
-        if (search) {
-            query.andWhere(new Brackets((qb) => {
-                qb.where("project.code ILIKE :search", { search: `%${search}%` })
-                    .orWhere("project.name ILIKE :search", { search: `%${search}%` });
-            }));
-        }
-
-        const [data, total] = await query
-            .orderBy("project.code", "ASC")
-            .skip(skip)
-            .take(limit)
-            .getManyAndCount();
-
-        const totalPages = Math.ceil(total / limit);
-
-        const enrichedData = type === "all"
-            ? data.map(item => ({ ...item, isAssociated: associatedIds.includes(item.id) }))
-            : data;
-
-        return {
-            data: enrichedData,
-            meta: {
-                total,
-                page,
-                limit,
-                totalPages,
-                hasNextPage: page < totalPages,
-                hasPreviousPage: page > 1
-            }
-        };
+        return findPaginatedRelations({
+            associatedIds,
+            queryBuilder: this.projectRepository.createQueryBuilder("project"),
+            alias: "project",
+            applySearch: (qb, s) => {
+                qb.andWhere(new Brackets((b) => {
+                    b.where("project.code ILIKE :search", { search: `%${s}%` })
+                        .orWhere("project.name ILIKE :search", { search: `%${s}%` });
+                }));
+            },
+            type,
+            page,
+            limit,
+            search,
+        });
     }
 
     private async ensureIndicatorExists(indicatorId: string) {
@@ -144,20 +116,6 @@ export class ProjectActionIndicatorRelationsService {
         if (!project) {
             throw new NotFoundException({ message: `Project with id ${projectId} not found`, code: ErrorCodes.PROJECT_NOT_FOUND });
         }
-    }
-
-    private emptyPaginatedResponse(page: number, limit: number) {
-        return {
-            data: [],
-            meta: {
-                total: 0,
-                page,
-                limit,
-                totalPages: 0,
-                hasNextPage: false,
-                hasPreviousPage: false
-            }
-        };
     }
 
     private handleDBExceptions(error: any) {

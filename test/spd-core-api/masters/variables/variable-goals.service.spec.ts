@@ -71,7 +71,7 @@ describe('VariableGoalsService', () => {
 
             expect(mockRepo.createQueryBuilder).toHaveBeenCalledWith('vg');
             expect(mockQb.leftJoin).toHaveBeenCalled();
-            expect(mockQb.where).toHaveBeenCalledWith('variable.id = :variableId', { variableId: 'var-1' });
+            expect(mockQb.where).toHaveBeenCalledWith('variable.id = :parentId', { parentId: 'var-1' });
             expect(mockQb.orderBy).toHaveBeenCalledWith('vg.createAt', 'DESC');
             expect(result.data).toHaveLength(1);
             expect(result.meta.page).toBe(1);

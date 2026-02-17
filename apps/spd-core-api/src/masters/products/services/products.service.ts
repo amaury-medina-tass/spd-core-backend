@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, Brackets } from "typeorm";
 import { Product } from "../entities/product.entity";
+import { buildPaginatedMeta, executeFindForSelect, calculateSkip, validateSortParams } from "../../../shared/helpers";
 
 @Injectable()
 export class ProductsService {
@@ -17,24 +18,9 @@ export class ProductsService {
         sortBy?: string,
         sortOrder?: "ASC" | "DESC"
     ) {
-        const skip = (page - 1) * limit;
-
-        const validSortOrder =
-            sortOrder === "ASC" || sortOrder === "DESC" ? sortOrder : "DESC";
-
-        const sortableFields = [
-            "createAt",
-            "updateAt",
-            "productCode",
-            "productName",
-            "indicatorCode",
-            "indicatorName",
-            "measuredUnit",
-            "unitType",
-            "isMainIndicator"
-        ];
-        const validSortBy =
-            sortBy && sortableFields.includes(sortBy) ? sortBy : "createAt";
+        const skip = calculateSkip(page, limit);
+        const sortableFields = ["createAt", "updateAt", "productCode", "productName", "indicatorCode", "indicatorName", "measuredUnit", "unitType", "isMainIndicator"];
+        const { validSortBy, validSortOrder } = validateSortParams(sortBy, sortOrder, sortableFields);
 
         const queryBuilder = this.productRepository.createQueryBuilder("product");
 
@@ -52,19 +38,7 @@ export class ProductsService {
 
         const [data, total] = await queryBuilder.getManyAndCount();
 
-        const totalPages = Math.ceil(total / limit);
-
-        return {
-            data,
-            meta: {
-                total,
-                page,
-                limit,
-                totalPages,
-                hasNextPage: page < totalPages,
-                hasPreviousPage: page > 1,
-            },
-        };
+        return { data, meta: buildPaginatedMeta(total, page, limit) };
     }
 
     async findForSelect(search?: string, limit: number = 30, offset: number = 0) {
@@ -76,33 +50,23 @@ export class ProductsService {
                 "product.indicatorName"
             ]);
 
-        if (search) {
-            queryBuilder.where(
-                new Brackets((qb) => {
-                    qb.where("product.productCode ILIKE :search", { search: `%${search}%` })
-                        .orWhere("product.productName ILIKE :search", { search: `%${search}%` })
-                        .orWhere("product.indicatorCode ILIKE :search", { search: `%${search}%` })
-                        .orWhere("product.indicatorName ILIKE :search", { search: `%${search}%` });
-                })
-            );
-        }
-
-        const [data, total] = await queryBuilder
-            .orderBy("product.productName", "ASC")
-            .addOrderBy("product.indicatorName", "ASC")
-            .skip(offset)
-            .take(limit)
-            .getManyAndCount();
-
-        return {
-            data,
-            meta: {
-                total,
-                limit,
-                offset,
-                hasMore: offset + data.length < total,
+        return executeFindForSelect({
+            queryBuilder,
+            applySearch: (qb, s) => {
+                qb.where(
+                    new Brackets((b) => {
+                        b.where("product.productCode ILIKE :search", { search: `%${s}%` })
+                            .orWhere("product.productName ILIKE :search", { search: `%${s}%` })
+                            .orWhere("product.indicatorCode ILIKE :search", { search: `%${s}%` })
+                            .orWhere("product.indicatorName ILIKE :search", { search: `%${s}%` });
+                    })
+                );
             },
-        };
+            orderBy: [["product.productName", "ASC"], ["product.indicatorName", "ASC"]],
+            search,
+            limit,
+            offset,
+        });
     }
 
     async findOne(id: string) {

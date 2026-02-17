@@ -7,7 +7,7 @@ describe('IndicativePlanIndicatorQuadrenniumsController', () => {
     beforeEach(() => {
         mockService = {
             create: jest.fn().mockResolvedValue({ id: '1' }),
-            findAllByIndicator: jest.fn().mockResolvedValue([]),
+            findAllByParent: jest.fn().mockResolvedValue([]),
             findOne: jest.fn().mockResolvedValue({ id: '1' }),
             update: jest.fn().mockResolvedValue({ id: '1' }),
             remove: jest.fn().mockResolvedValue({ message: 'deleted' }),
@@ -23,7 +23,7 @@ describe('IndicativePlanIndicatorQuadrenniumsController', () => {
 
     it('findAllByIndicator() delegates to service', () => {
         controller.findAllByIndicator('ind-1');
-        expect(mockService.findAllByIndicator).toHaveBeenCalledWith('ind-1');
+        expect(mockService.findAllByParent).toHaveBeenCalledWith('ind-1');
     });
 
     it('findOne() delegates to service', () => {

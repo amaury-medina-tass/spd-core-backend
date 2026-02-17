@@ -6,6 +6,7 @@ import { ContractCdpRelation } from "../../financial/contract-cdp-relations/enti
 import { BudgetRecord } from "../../financial/budget-records/entities/budget-record.entity";
 import { ContractPosition } from "../../financial/contract-positions/entities/contract-position.entity";
 import { ExportResult } from "./export.types";
+import { getExportDate } from "../../shared/helpers/export-columns.helper";
 
 @Injectable()
 export class ContractsExportBuilder {
@@ -142,7 +143,7 @@ export class ContractsExportBuilder {
       projectCode: row.project?.code ?? "",
     }));
 
-    const now = new Date().toISOString().slice(0, 10);
+    const now = getExportDate();
 
     return {
       fileName: `contratos-marco-${now}.xlsx`,

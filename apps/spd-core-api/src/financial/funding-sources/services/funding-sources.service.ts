@@ -7,6 +7,7 @@ import { AuditLogService } from "@common/cosmosdb/audit-log.service";
 import { AuditAction, AuditEntityType, buildChanges } from "@common/types/audit.types";
 import { ErrorCodes } from "@common/errors/error-codes";
 import { SYSTEM_NAME } from "../../../shared/constants";
+import { buildPaginatedMeta, executeFindForSelect, calculateSkip, validateSortParams } from "../../../shared/helpers";
 
 @Injectable()
 export class FundingSourcesService {
@@ -39,14 +40,9 @@ export class FundingSourcesService {
         sortBy?: string,
         sortOrder?: "ASC" | "DESC"
     ) {
-        const skip = (page - 1) * limit;
-
-        const validSortOrder =
-            sortOrder === "ASC" || sortOrder === "DESC" ? sortOrder : "DESC";
-
+        const skip = calculateSkip(page, limit);
         const sortableFields = ["createAt", "updateAt", "code", "name"];
-        const validSortBy =
-            sortBy && sortableFields.includes(sortBy) ? sortBy : "createAt";
+        const { validSortBy, validSortOrder } = validateSortParams(sortBy, sortOrder, sortableFields);
 
         const queryBuilder = this.repo.createQueryBuilder("fundingSource");
 
@@ -63,19 +59,8 @@ export class FundingSourcesService {
             .take(limit);
 
         const [data, total] = await queryBuilder.getManyAndCount();
-        const totalPages = Math.ceil(total / limit);
 
-        return {
-            data,
-            meta: {
-                total,
-                page,
-                limit,
-                totalPages,
-                hasNextPage: page < totalPages,
-                hasPreviousPage: page > 1,
-            },
-        };
+        return { data, meta: buildPaginatedMeta(total, page, limit) };
     }
 
     async findOne(id: string) {
@@ -89,30 +74,21 @@ export class FundingSourcesService {
             .createQueryBuilder("fundingSource")
             .select(["fundingSource.id", "fundingSource.code", "fundingSource.name"]);
 
-        if (search) {
-            queryBuilder.where(
-                new Brackets((qb) => {
-                    qb.where("fundingSource.code ILIKE :search", { search: `%${search}%` })
-                        .orWhere("fundingSource.name ILIKE :search", { search: `%${search}%` });
-                })
-            );
-        }
-
-        const [data, total] = await queryBuilder
-            .orderBy("fundingSource.code", "ASC")
-            .skip(offset)
-            .take(limit)
-            .getManyAndCount();
-
-        return {
-            data,
-            meta: {
-                total,
-                limit,
-                offset,
-                hasMore: offset + data.length < total,
+        return executeFindForSelect({
+            queryBuilder,
+            applySearch: (qb, s) => {
+                qb.where(
+                    new Brackets((b) => {
+                        b.where("fundingSource.code ILIKE :search", { search: `%${s}%` })
+                            .orWhere("fundingSource.name ILIKE :search", { search: `%${s}%` });
+                    })
+                );
             },
-        };
+            orderBy: [["fundingSource.code", "ASC"]],
+            search,
+            limit,
+            offset,
+        });
     }
 
     async update(id: string, dto: Partial<CreateFundingSourceDto>) {

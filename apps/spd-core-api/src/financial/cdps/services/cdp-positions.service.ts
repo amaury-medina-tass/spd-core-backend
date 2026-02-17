@@ -10,6 +10,7 @@ import { AuditLogService } from "@common/cosmosdb/audit-log.service";
 import { AuditAction, AuditEntityType } from "@common/types/audit.types";
 import { ErrorCodes } from "@common/errors/error-codes";
 import { SYSTEM_NAME } from "../../../shared/constants";
+import { calculateSkip, buildPaginatedMeta, emptyPaginatedResponse } from "../../../shared/helpers";
 
 @Injectable()
 export class CdpPositionsService {
@@ -60,7 +61,7 @@ export class CdpPositionsService {
         sortOrder?: "ASC" | "DESC",
         masterContractId?: string
     ): Promise<{ data: CdpTableRowDto[]; meta: { total: number; page: number; limit: number; totalPages: number; hasNextPage: boolean; hasPreviousPage: boolean } }> {
-        const skip = (page - 1) * limit;
+        const skip = calculateSkip(page, limit);
         const validSortOrder = sortOrder === "ASC" || sortOrder === "DESC" ? sortOrder : "DESC";
 
         // Mapeo de campos de ordenamiento
@@ -186,19 +187,7 @@ export class CdpPositionsService {
             observations: row.observations,
         }));
 
-        const totalPages = Math.ceil(total / limit);
-
-        return {
-            data,
-            meta: {
-                total,
-                page,
-                limit,
-                totalPages,
-                hasNextPage: page < totalPages,
-                hasPreviousPage: page > 1,
-            },
-        };
+        return { data, meta: buildPaginatedMeta(total, page, limit) };
     }
 
     async findOne(
@@ -272,7 +261,7 @@ export class CdpPositionsService {
             .getRawOne();
 
         // Query para obtener el consumo desglosado por cada actividad con paginación y búsqueda
-        const activitySkip = (activityPage - 1) * activityLimit;
+        const activitySkip = calculateSkip(activityPage, activityLimit);
 
         const activityQuery = this.fundingRepo
             .createQueryBuilder("cpf")
@@ -333,8 +322,6 @@ export class CdpPositionsService {
             balance: Number(item.balance) || 0,
         }));
 
-        const activityTotalPages = Math.ceil(activityTotal / activityLimit);
-
         return {
             id: row.id,
             projectCode: row.projectCode,
@@ -362,14 +349,7 @@ export class CdpPositionsService {
             })),
             consumedByActivity: {
                 data: consumedByActivityData,
-                meta: {
-                    total: activityTotal,
-                    page: activityPage,
-                    limit: activityLimit,
-                    totalPages: activityTotalPages,
-                    hasNextPage: activityPage < activityTotalPages,
-                    hasPreviousPage: activityPage > 1,
-                }
+                meta: buildPaginatedMeta(activityTotal, activityPage, activityLimit),
             },
         };
     }
@@ -406,7 +386,7 @@ export class CdpPositionsService {
         limit: number = 20,
         search?: string
     ) {
-        const skip = (page - 1) * limit;
+        const skip = calculateSkip(page, limit);
 
         // 1. Get the position and its related CDP projects
         const position = await this.repo
@@ -425,7 +405,7 @@ export class CdpPositionsService {
         const projectIds = position.cdp?.cdpProjects?.map(cp => cp.projectId) || [];
 
         if (projectIds.length === 0) {
-            return this.emptyPaginatedResponse(page, limit);
+            return emptyPaginatedResponse(page, limit);
         }
 
         // 2. Get associated activity IDs for this position
@@ -444,7 +424,7 @@ export class CdpPositionsService {
         // Apply type filter
         if (type === "associated") {
             if (associatedIds.length === 0) {
-                return this.emptyPaginatedResponse(page, limit);
+                return emptyPaginatedResponse(page, limit);
             }
             query.andWhere("da.id IN (:...associatedIds)", { associatedIds });
         } else if (type === "available") {
@@ -470,38 +450,12 @@ export class CdpPositionsService {
             .take(limit)
             .getManyAndCount();
 
-        const totalPages = Math.ceil(total / limit);
-
         // Add isAssociated flag when type is "all"
         const enrichedData = type === "all"
             ? data.map(item => ({ ...item, isAssociated: associatedIds.includes(item.id) }))
             : data;
 
-        return {
-            data: enrichedData,
-            meta: {
-                total,
-                page,
-                limit,
-                totalPages,
-                hasNextPage: page < totalPages,
-                hasPreviousPage: page > 1
-            }
-        };
-    }
-
-    private emptyPaginatedResponse(page: number, limit: number) {
-        return {
-            data: [],
-            meta: {
-                total: 0,
-                page,
-                limit,
-                totalPages: 0,
-                hasNextPage: false,
-                hasPreviousPage: false
-            }
-        };
+        return { data: enrichedData, meta: buildPaginatedMeta(total, page, limit) };
     }
 
     async associateActivity(positionId: string, detailedActivityId: string): Promise<CdpPositionFunding> {

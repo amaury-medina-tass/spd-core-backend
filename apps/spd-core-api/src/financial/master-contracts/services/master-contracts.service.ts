@@ -3,6 +3,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, Brackets } from "typeorm";
 import { MasterContract } from "../entities/master-contract.entity";
 import { ErrorCodes } from "@common/errors/error-codes";
+import { findAllPaginatedByParent } from "../../../shared/helpers";
 
 @Injectable()
 export class MasterContractsService {
@@ -18,65 +19,31 @@ export class MasterContractsService {
         sortBy?: string,
         sortOrder?: "ASC" | "DESC"
     ) {
-        const skip = (page - 1) * limit;
-
-        const validSortOrder =
-            sortOrder === "ASC" || sortOrder === "DESC" ? sortOrder : "DESC";
-
-        const sortableFields = [
-            "createAt",
-            "updateAt",
-            "number",
-            "object",
-            "totalValue",
-            "state",
-            "contractor.name",
-            "contractor.nit",
-            "need.code"
-        ];
-        const validSortBy =
-            sortBy && sortableFields.includes(sortBy) ? sortBy : "createAt";
-
         const queryBuilder = this.repo
             .createQueryBuilder("masterContract")
             .leftJoin("masterContract.need", "need")
             .leftJoin("masterContract.contractor", "contractor")
             .addSelect(["masterContract", "need.id", "need.code", "contractor.id", "contractor.name", "contractor.nit"]);
 
-        if (search) {
-            queryBuilder.where(new Brackets((qb) => {
-                qb.where("masterContract.number LIKE :search", { search: `%${search}%` })
-                    .orWhere("masterContract.object LIKE :search", { search: `%${search}%` })
-                    .orWhere("contractor.name LIKE :search", { search: `%${search}%` })
-                    .orWhere("contractor.nit LIKE :search", { search: `%${search}%` })
-                    .orWhere("CAST(need.code AS TEXT) LIKE :search", { search: `%${search}%` });
-            }));
-        }
-
-        if (validSortBy.includes(".")) {
-            const [relation, field] = validSortBy.split(".");
-            queryBuilder.orderBy(`${relation}.${field}`, validSortOrder);
-        } else {
-            queryBuilder.orderBy(`masterContract.${validSortBy}`, validSortOrder);
-        }
-
-        queryBuilder.skip(skip).take(limit);
-
-        const [data, total] = await queryBuilder.getManyAndCount();
-
-        const totalPages = Math.ceil(total / limit);
-
-        return {
-            data,
-            meta: {
-                total,
-                page,
-                limit,
-                totalPages,
-                hasNextPage: page < totalPages,
-                hasPreviousPage: page > 1,
+        return findAllPaginatedByParent({
+            queryBuilder,
+            alias: "masterContract",
+            applySearch: (qb, s) => {
+                qb.where(new Brackets((b) => {
+                    b.where("masterContract.number LIKE :search", { search: `%${s}%` })
+                        .orWhere("masterContract.object LIKE :search", { search: `%${s}%` })
+                        .orWhere("contractor.name LIKE :search", { search: `%${s}%` })
+                        .orWhere("contractor.nit LIKE :search", { search: `%${s}%` })
+                        .orWhere("CAST(need.code AS TEXT) LIKE :search", { search: `%${s}%` });
+                }));
             },
-        };
+            sortableFields: ["createAt", "updateAt", "number", "object", "totalValue", "state", "contractor.name", "contractor.nit", "need.code"],
+            page,
+            limit,
+            search,
+            sortBy,
+            sortOrder,
+        });
     }
 
     async findOne(id: string) {

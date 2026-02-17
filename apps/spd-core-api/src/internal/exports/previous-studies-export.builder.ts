@@ -5,6 +5,7 @@ import { PreviousStudiesService } from "../../financial/previous-studies/service
 import { Need } from "../../financial/needs/entities/need.entity";
 import { MasterContract } from "../../financial/master-contracts/entities/master-contract.entity";
 import { ExportResult } from "./export.types";
+import { getExportDate } from "../../shared/helpers/export-columns.helper";
 
 @Injectable()
 export class PreviousStudiesExportBuilder {
@@ -95,7 +96,7 @@ export class PreviousStudiesExportBuilder {
       contractorNit: row.contractor?.nit ?? "",
     }));
 
-    const now = new Date().toISOString().slice(0, 10);
+    const now = getExportDate();
 
     return {
       fileName: `estudios-previos-${now}.xlsx`,

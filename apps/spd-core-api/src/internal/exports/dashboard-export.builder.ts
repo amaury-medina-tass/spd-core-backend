@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { DashboardService } from "../../financial/dashboard/services/dashboard.service";
 import { ExportResult } from "./export.types";
+import { getExportDate } from "../../shared/helpers/export-columns.helper";
 
 @Injectable()
 export class DashboardExportBuilder {
@@ -90,7 +91,7 @@ export class DashboardExportBuilder {
       mgaActivitiesCount: row.mgaActivitiesCount ?? 0,
     }));
 
-    const now = new Date().toISOString().slice(0, 10);
+    const now = getExportDate();
 
     return {
       fileName: `dashboard-financiero-${now}.xlsx`,

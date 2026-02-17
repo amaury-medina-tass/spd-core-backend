@@ -4,35 +4,18 @@ import { PermissionsGuard } from "../../../common/guards/permissions.guard";
 import { RequirePermission } from "../../../common/decorators/require-permission.decorator";
 import { ResponseMessage } from "../../../common/decorators/response-message.decorator";
 import { NeedsService } from "../services/needs.service";
+import { BaseReadPaginatedController } from "../../../shared/controllers";
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
+@RequirePermission("/financial/needs", "READ")
 @Controller("financial/needs")
-export class NeedsController {
-    constructor(private readonly service: NeedsService) { }
+export class NeedsController extends BaseReadPaginatedController {
+    protected readonly service: NeedsService;
+    protected readonly entityLabel = "Necesidades";
 
-    @Get()
-    @RequirePermission("/financial/needs", "READ")
-    @ResponseMessage("Listado de necesidades")
-    findAll(
-        @Query("page") page: number,
-        @Query("limit") limit: number,
-        @Query("search") search: string,
-        @Query("sortBy") sortBy: string,
-        @Query("sortOrder") sortOrder: "ASC" | "DESC"
-    ) {
-        return this.service.findAllPaginated(
-            page ? +page : 1,
-            limit ? +limit : 10,
-            search,
-            sortBy,
-            sortOrder
-        );
-    }
-    @Get(":id")
-    @RequirePermission("/financial/needs", "READ")
-    @ResponseMessage("Detalle de la necesidad")
-    findOne(@Param("id") id: string) {
-        return this.service.findOne(id);
+    constructor(service: NeedsService) {
+        super();
+        this.service = service;
     }
 
     @Get(":id/cdp-positions")
@@ -44,7 +27,7 @@ export class NeedsController {
         @Query("limit") limit: number,
         @Query("search") search: string,
         @Query("sortBy") sortBy: string,
-        @Query("sortOrder") sortOrder: "ASC" | "DESC"
+        @Query("sortOrder") sortOrder: "ASC" | "DESC",
     ) {
         return this.service.findCdpPositionsByNeedId(
             id,
@@ -52,7 +35,7 @@ export class NeedsController {
             limit ? +limit : 10,
             search,
             sortBy,
-            sortOrder
+            sortOrder,
         );
     }
 }

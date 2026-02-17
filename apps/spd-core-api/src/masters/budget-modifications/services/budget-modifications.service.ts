@@ -8,6 +8,7 @@ import { AuditLogService } from "@common/cosmosdb/audit-log.service";
 import { AuditAction, AuditEntityType } from "@common/types/audit.types";
 import { ErrorCodes } from "@common/errors/error-codes";
 import { SYSTEM_NAME } from "../../../shared/constants";
+import { handleDBExceptions, findAllPaginatedByParent } from "../../../shared/helpers";
 
 @Injectable()
 export class BudgetModificationsService {
@@ -169,22 +170,6 @@ export class BudgetModificationsService {
         sortOrder?: "ASC" | "DESC",
         detailedActivityId?: string
     ) {
-        const skip = (page - 1) * limit;
-
-        const validSortOrder =
-            sortOrder === "ASC" || sortOrder === "DESC" ? sortOrder : "DESC";
-
-        const sortableFields = [
-            "createdAt",
-            "modificationType",
-            "legalDocument",
-            "value",
-            "detailedActivity.code",
-            "detailedActivity.name"
-        ];
-        const validSortBy =
-            sortBy && sortableFields.includes(sortBy) ? sortBy : "createdAt";
-
         const queryBuilder = this.budgetModificationRepository
             .createQueryBuilder("bm")
             .leftJoin("bm.detailedActivity", "detailedActivity")
@@ -209,39 +194,25 @@ export class BudgetModificationsService {
             queryBuilder.andWhere("detailedActivity.id = :detailedActivityId", { detailedActivityId });
         }
 
-        if (search) {
-            queryBuilder.where(new Brackets((qb) => {
-                qb.where("bm.legalDocument LIKE :search", { search: `%${search}%` })
-                    .orWhere("bm.description LIKE :search", { search: `%${search}%` })
-                    .orWhere("detailedActivity.code LIKE :search", { search: `%${search}%` })
-                    .orWhere("detailedActivity.name LIKE :search", { search: `%${search}%` });
-            }));
-        }
-
-        if (validSortBy.includes(".")) {
-            const [relation, field] = validSortBy.split(".");
-            queryBuilder.orderBy(`${relation}.${field}`, validSortOrder);
-        } else {
-            queryBuilder.orderBy(`bm.${validSortBy}`, validSortOrder);
-        }
-
-        queryBuilder.skip(skip).take(limit);
-
-        const [data, total] = await queryBuilder.getManyAndCount();
-
-        const totalPages = Math.ceil(total / limit);
-
-        return {
-            data,
-            meta: {
-                total,
-                page,
-                limit,
-                totalPages,
-                hasNextPage: page < totalPages,
-                hasPreviousPage: page > 1,
+        return findAllPaginatedByParent({
+            queryBuilder,
+            alias: "bm",
+            applySearch: (qb, s) => {
+                qb.where(new Brackets((b) => {
+                    b.where("bm.legalDocument LIKE :search", { search: `%${s}%` })
+                        .orWhere("bm.description LIKE :search", { search: `%${s}%` })
+                        .orWhere("detailedActivity.code LIKE :search", { search: `%${s}%` })
+                        .orWhere("detailedActivity.name LIKE :search", { search: `%${s}%` });
+                }));
             },
-        };
+            sortableFields: ["createdAt", "modificationType", "legalDocument", "value", "detailedActivity.code", "detailedActivity.name"],
+            defaultSortBy: "createdAt",
+            page,
+            limit,
+            search,
+            sortBy,
+            sortOrder,
+        });
     }
 
     async findOne(id: string): Promise<BudgetModification> {
@@ -258,9 +229,6 @@ export class BudgetModificationsService {
     }
 
     private handleDBExceptions(error: any) {
-        if (error.code === "23505") {
-            throw new BadRequestException({ message: error.detail, code: ErrorCodes.DUPLICATE_ENTRY });
-        }
-        this.logger.error(error);
+        handleDBExceptions(error, this.logger);
     }
 }

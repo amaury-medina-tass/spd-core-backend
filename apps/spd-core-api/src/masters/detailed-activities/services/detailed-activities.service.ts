@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, Brackets } from "typeorm";
 import { DetailedActivity } from "../entities/detailed-activity.entity";
@@ -8,6 +8,7 @@ import { AuditLogService } from "@common/cosmosdb/audit-log.service";
 import { AuditAction, AuditEntityType, buildChanges } from "@common/types/audit.types";
 import { ErrorCodes } from "@common/errors/error-codes";
 import { SYSTEM_NAME } from "../../../shared/constants";
+import { executeFindForSelect, handleDBExceptions, findAllPaginatedByParent } from "../../../shared/helpers";
 
 @Injectable()
 export class DetailedActivitiesService {
@@ -44,72 +45,34 @@ export class DetailedActivitiesService {
         sortBy?: string,
         sortOrder?: "ASC" | "DESC"
     ) {
-        const skip = (page - 1) * limit;
-
-        const validSortOrder =
-            sortOrder === "ASC" || sortOrder === "DESC" ? sortOrder : "DESC";
-
-        const sortableFields = [
-            "createAt",
-            "updateAt",
-            "code",
-            "name",
-            "observations",
-            "activityDate",
-            "budgetCeiling",
-            "balance",
-            "cpc",
-            "project.code",
-            "project.name",
-            "rubric.code",
-            "rubric.accountName"
-        ];
-        const validSortBy =
-            sortBy && sortableFields.includes(sortBy) ? sortBy : "createAt";
-
         const queryBuilder = this.detailedActivityRepository
             .createQueryBuilder("detailedActivity")
             .leftJoin("detailedActivity.project", "project")
             .leftJoin("detailedActivity.rubric", "rubric")
             .addSelect(["detailedActivity", "project.id", "project.code", "project.name", "rubric.id", "rubric.code", "rubric.accountName"]);
 
-        if (search) {
-            queryBuilder.where(new Brackets((qb) => {
-                qb.where("detailedActivity.code LIKE :search", { search: `%${search}%` })
-                    .orWhere("detailedActivity.name LIKE :search", { search: `%${search}%` })
-                    .orWhere("detailedActivity.observations LIKE :search", { search: `%${search}%` })
-                    .orWhere("detailedActivity.activityDate::text LIKE :search", { search: `%${search}%` })
-                    .orWhere("project.code LIKE :search", { search: `%${search}%` })
-                    .orWhere("project.name LIKE :search", { search: `%${search}%` })
-                    .orWhere("rubric.code LIKE :search", { search: `%${search}%` })
-                    .orWhere("rubric.accountName LIKE :search", { search: `%${search}%` });
-            }));
-        }
-
-        if (validSortBy.includes(".")) {
-            const [relation, field] = validSortBy.split(".");
-            queryBuilder.orderBy(`${relation}.${field}`, validSortOrder);
-        } else {
-            queryBuilder.orderBy(`detailedActivity.${validSortBy}`, validSortOrder);
-        }
-
-        queryBuilder.skip(skip).take(limit);
-
-        const [data, total] = await queryBuilder.getManyAndCount();
-
-        const totalPages = Math.ceil(total / limit);
-
-        return {
-            data,
-            meta: {
-                total,
-                page,
-                limit,
-                totalPages,
-                hasNextPage: page < totalPages,
-                hasPreviousPage: page > 1,
+        return findAllPaginatedByParent({
+            queryBuilder,
+            alias: "detailedActivity",
+            applySearch: (qb, s) => {
+                qb.where(new Brackets((b) => {
+                    b.where("detailedActivity.code LIKE :search", { search: `%${s}%` })
+                        .orWhere("detailedActivity.name LIKE :search", { search: `%${s}%` })
+                        .orWhere("detailedActivity.observations LIKE :search", { search: `%${s}%` })
+                        .orWhere("detailedActivity.activityDate::text LIKE :search", { search: `%${s}%` })
+                        .orWhere("project.code LIKE :search", { search: `%${s}%` })
+                        .orWhere("project.name LIKE :search", { search: `%${s}%` })
+                        .orWhere("rubric.code LIKE :search", { search: `%${s}%` })
+                        .orWhere("rubric.accountName LIKE :search", { search: `%${s}%` });
+                }));
             },
-        };
+            sortableFields: ["createAt", "updateAt", "code", "name", "observations", "activityDate", "budgetCeiling", "balance", "cpc", "project.code", "project.name", "rubric.code", "rubric.accountName"],
+            page,
+            limit,
+            search,
+            sortBy,
+            sortOrder,
+        });
     }
 
     async findOne(id: string): Promise<DetailedActivity> {
@@ -165,10 +128,7 @@ export class DetailedActivitiesService {
     }
 
     private handleDBExceptions(error: any) {
-        if (error.code === "23505") {
-            throw new BadRequestException({ message: error.detail, code: ErrorCodes.DUPLICATE_ENTRY });
-        }
-        this.logger.error(error);
+        handleDBExceptions(error, this.logger);
     }
 
     async findForSelect(search?: string, limit: number = 30, offset: number = 0) {
@@ -189,30 +149,21 @@ export class DetailedActivitiesService {
                 "rubric.code"
             ]);
 
-        if (search) {
-            queryBuilder.where(
-                new Brackets((qb) => {
-                    qb.where("detailedActivity.code ILIKE :search", { search: `%${search}%` })
-                        .orWhere("detailedActivity.name ILIKE :search", { search: `%${search}%` })
-                        .orWhere("project.code ILIKE :search", { search: `%${search}%` });
-                })
-            );
-        }
-
-        const [data, total] = await queryBuilder
-            .orderBy("detailedActivity.createAt", "DESC")
-            .skip(offset)
-            .take(limit)
-            .getManyAndCount();
-
-        return {
-            data,
-            meta: {
-                total,
-                limit,
-                offset,
-                hasMore: offset + data.length < total,
+        return executeFindForSelect({
+            queryBuilder,
+            applySearch: (qb, s) => {
+                qb.where(
+                    new Brackets((b) => {
+                        b.where("detailedActivity.code ILIKE :search", { search: `%${s}%` })
+                            .orWhere("detailedActivity.name ILIKE :search", { search: `%${s}%` })
+                            .orWhere("project.code ILIKE :search", { search: `%${s}%` });
+                    })
+                );
             },
-        };
+            orderBy: [["detailedActivity.createAt", "DESC"]],
+            search,
+            limit,
+            offset,
+        });
     }
 }

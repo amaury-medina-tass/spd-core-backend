@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, Brackets } from "typeorm";
 import { MgaActivity } from "../entities/mga-activity.entity";
@@ -10,6 +10,7 @@ import { AuditLogService } from "@common/cosmosdb/audit-log.service";
 import { AuditAction, AuditEntityType, buildChanges } from "@common/types/audit.types";
 import { ErrorCodes } from "@common/errors/error-codes";
 import { SYSTEM_NAME } from "../../../shared/constants";
+import { calculateSkip, buildPaginatedMeta, emptyPaginatedResponse, handleDBExceptions } from "../../../shared/helpers";
 
 @Injectable()
 export class MgaActivitiesService {
@@ -245,7 +246,7 @@ export class MgaActivitiesService {
             .getRawOne();
 
         // Query para obtener las actividades detalladas paginadas
-        const activitySkip = (activityPage - 1) * activityLimit;
+        const activitySkip = calculateSkip(activityPage, activityLimit);
 
         const activityQuery = this.mgaDetailedRelationRepository
             .createQueryBuilder("rel")
@@ -312,8 +313,6 @@ export class MgaActivitiesService {
             balance: Number(item.balance) || 0,
         }));
 
-        const activityTotalPages = Math.ceil(activityTotal / activityLimit);
-
         return {
             id: mgaActivity.id,
             code: mgaActivity.code,
@@ -329,14 +328,7 @@ export class MgaActivitiesService {
             balance: Number(totalsResult?.totalBalance) || 0,
             detailedActivities: {
                 data: detailedActivitiesData,
-                meta: {
-                    total: activityTotal,
-                    page: activityPage,
-                    limit: activityLimit,
-                    totalPages: activityTotalPages,
-                    hasNextPage: activityPage < activityTotalPages,
-                    hasPreviousPage: activityPage > 1,
-                }
+                meta: buildPaginatedMeta(activityTotal, activityPage, activityLimit),
             },
         };
     }
@@ -441,7 +433,7 @@ export class MgaActivitiesService {
         search?: string
     ) {
         const mgaActivity = await this.findOne(id);
-        const skip = (page - 1) * limit;
+        const skip = calculateSkip(page, limit);
 
         const associatedIds = (await this.mgaDetailedRelationRepository.find({
             where: { mgaActivityId: id },
@@ -456,7 +448,7 @@ export class MgaActivitiesService {
 
         if (type === "associated") {
             if (associatedIds.length === 0) {
-                return this.emptyPaginatedResponse(page, limit);
+                return emptyPaginatedResponse(page, limit);
             }
             query.andWhere("da.id IN (:...ids)", { ids: associatedIds });
         } else if (type === "available") {
@@ -480,43 +472,14 @@ export class MgaActivitiesService {
             .take(limit)
             .getManyAndCount();
 
-        const totalPages = Math.ceil(total / limit);
-
         const enrichedData = type === "all"
             ? data.map(item => ({ ...item, isAssociated: associatedIds.includes(item.id) }))
             : data;
 
-        return {
-            data: enrichedData,
-            meta: {
-                total,
-                page,
-                limit,
-                totalPages,
-                hasNextPage: page < totalPages,
-                hasPreviousPage: page > 1
-            }
-        };
-    }
-
-    private emptyPaginatedResponse(page: number, limit: number) {
-        return {
-            data: [],
-            meta: {
-                total: 0,
-                page,
-                limit,
-                totalPages: 0,
-                hasNextPage: false,
-                hasPreviousPage: false
-            }
-        };
+        return { data: enrichedData, meta: buildPaginatedMeta(total, page, limit) };
     }
 
     private handleDBExceptions(error: any) {
-        if (error.code === "23505") {
-            throw new BadRequestException({ message: error.detail, code: ErrorCodes.DUPLICATE_ENTRY });
-        }
-        this.logger.error(error);
+        handleDBExceptions(error, this.logger);
     }
 }

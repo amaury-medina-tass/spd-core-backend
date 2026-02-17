@@ -2,6 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, Brackets } from "typeorm";
 import { Commune } from "../entities/commune.entity";
+import { executeFindForSelect } from "../../../shared/helpers";
 
 @Injectable()
 export class CommunesService {
@@ -21,29 +22,20 @@ export class CommunesService {
                 "commune.name",
             ]);
 
-        if (search) {
-            queryBuilder.where(
-                new Brackets((qb) => {
-                    qb.where("commune.code ILIKE :search", { search: `%${search}%` })
-                        .orWhere("commune.name ILIKE :search", { search: `%${search}%` });
-                })
-            );
-        }
-
-        const [data, total] = await queryBuilder
-            .orderBy("CAST(commune.code AS INTEGER)", "ASC")
-            .skip(offset)
-            .take(limit)
-            .getManyAndCount();
-
-        return {
-            data,
-            meta: {
-                total,
-                limit,
-                offset,
-                hasMore: offset + data.length < total,
+        return executeFindForSelect({
+            queryBuilder,
+            search,
+            limit,
+            offset,
+            orderBy: [["CAST(commune.code AS INTEGER)", "ASC"]],
+            applySearch: (qb, s) => {
+                qb.where(
+                    new Brackets((sub) => {
+                        sub.where("commune.code ILIKE :search", { search: `%${s}%` })
+                            .orWhere("commune.name ILIKE :search", { search: `%${s}%` });
+                    }),
+                );
             },
-        };
+        });
     }
 }

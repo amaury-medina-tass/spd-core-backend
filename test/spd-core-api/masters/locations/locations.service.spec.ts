@@ -80,13 +80,13 @@ describe('LocationsService', () => {
         it('should apply search filter', async () => {
             await service.findForSelect('test');
 
-            expect(mockQb.where).toHaveBeenCalled();
+            expect(mockQb.andWhere).toHaveBeenCalled();
         });
 
         it('should filter by communeId', async () => {
             await service.findForSelect(undefined, 'commune-1');
 
-            expect(mockQb.andWhere).toHaveBeenCalledWith(
+            expect(mockQb.where).toHaveBeenCalledWith(
                 'location.communeId = :communeId',
                 { communeId: 'commune-1' },
             );

@@ -263,7 +263,7 @@ describe('IndicatorLocationsService', () => {
 
             await service.findActionIndicatorsByCommuneCode('all', 1, 10, 'test');
 
-            expect(mockQb.where).toHaveBeenCalled();
+            expect(mockQb.andWhere).toHaveBeenCalled();
         });
     });
 

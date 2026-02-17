@@ -7,6 +7,7 @@ import { CdpPositionFunding } from "../../financial/cdps/entities/cdp-position-f
 import { ContractCdpRelation } from "../../financial/contract-cdp-relations/entities/contract-cdp-relation.entity";
 import { CdpProject } from "../../financial/cdps/entities/cdp-project.entity";
 import { ExportResult } from "./export.types";
+import { getExportDate } from "../../shared/helpers/export-columns.helper";
 
 @Injectable()
 export class CdpExportBuilder {
@@ -165,7 +166,7 @@ export class CdpExportBuilder {
       balance: row.balance ? Number(row.balance) : 0,
     }));
 
-    const now = new Date().toISOString().slice(0, 10);
+    const now = getExportDate();
 
     return {
       fileName: `reporte-cdp-completo-${now}.xlsx`,

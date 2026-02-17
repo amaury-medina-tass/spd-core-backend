@@ -34,6 +34,7 @@ describe('ActionPlanIndicatorGoalsService', () => {
             create: jest.fn().mockImplementation((dto: any) => ({ ...dto })),
             save: jest.fn().mockImplementation((entity: any) => Promise.resolve({ ...entity, id: 'g-1', year: entity.year ?? 2024 })),
             findOne: jest.fn().mockResolvedValue(mockGoal),
+            preload: jest.fn().mockResolvedValue(mockGoal),
             find: jest.fn().mockResolvedValue([mockGoal]),
             remove: jest.fn().mockResolvedValue(undefined),
         };
@@ -83,7 +84,7 @@ describe('ActionPlanIndicatorGoalsService', () => {
             const result = await service.findAllPaginated('ind-1');
 
             expect(mockGoalRepo.createQueryBuilder).toHaveBeenCalledWith('g');
-            expect(mockQb.where).toHaveBeenCalledWith('indicator.id = :indicatorId', { indicatorId: 'ind-1' });
+            expect(mockQb.where).toHaveBeenCalledWith('indicator.id = :parentId', { parentId: 'ind-1' });
             expect(mockQb.orderBy).toHaveBeenCalledWith('g.createAt', 'DESC');
             expect(result.data).toHaveLength(1);
         });
@@ -147,23 +148,26 @@ describe('ActionPlanIndicatorGoalsService', () => {
     describe('update', () => {
         it('should update a goal', async () => {
             const dto = { value: 200 } as any;
+            mockGoalRepo.preload.mockResolvedValue({ ...mockGoal, value: 200 });
             mockGoalRepo.save.mockResolvedValue({ ...mockGoal, value: 200 });
 
             const result = await service.update('g-1', dto);
 
+            expect(mockGoalRepo.preload).toHaveBeenCalledWith({ id: 'g-1', ...dto });
             expect(mockGoalRepo.save).toHaveBeenCalled();
             expect(mockAuditLog.logSuccess).toHaveBeenCalled();
             expect(result.value).toBe(200);
         });
 
         it('should throw NotFoundException if goal not found', async () => {
-            mockGoalRepo.findOne.mockResolvedValue(null);
+            mockGoalRepo.preload.mockResolvedValue(null);
 
             await expect(service.update('bad-id', { value: 200 } as any))
                 .rejects.toThrow(NotFoundException);
         });
 
         it('should throw BadRequestException on duplicate key', async () => {
+            mockGoalRepo.preload.mockResolvedValue(mockGoal);
             mockGoalRepo.save.mockRejectedValue({ code: '23505' });
 
             await expect(service.update('g-1', { value: 200 } as any))

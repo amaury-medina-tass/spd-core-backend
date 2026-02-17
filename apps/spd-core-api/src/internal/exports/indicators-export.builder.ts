@@ -15,6 +15,14 @@ import { VariableQuadrennium } from "../../masters/variables/entities/variable-q
 import { VariableActionRelation } from "../../masters/indicators/entities/action-plan/variable-action-relation.entity";
 import { VariableIndicativeRelation } from "../../masters/indicators/entities/indicative-plan/variable-indicative-relation.entity";
 import { ExportResult } from "./export.types";
+import {
+  INDICATOR_GOALS_COLUMNS,
+  INDICATOR_QUADRENNIUMS_COLUMNS,
+  VARIABLE_GOALS_COLUMNS,
+  VARIABLE_QUADRENNIUMS_COLUMNS,
+  VARIABLE_RELATION_COLUMNS,
+  getExportDate,
+} from "../../shared/helpers/export-columns.helper";
 
 @Injectable()
 export class IndicatorsExportBuilder {
@@ -245,7 +253,7 @@ export class IndicatorsExportBuilder {
       projectName: row.project?.name ?? "",
     }));
 
-    const now = new Date().toISOString().slice(0, 10);
+    const now = getExportDate();
 
     return {
       fileName: `indicadores-${now}.xlsx`,
@@ -289,44 +297,22 @@ export class IndicatorsExportBuilder {
         },
         {
           name: "Metas Plan Acción",
-          columns: [
-            { header: "Indicador (Código)", key: "indicatorCode", width: 18 },
-            { header: "Indicador (Nombre)", key: "indicatorName", width: 40 },
-            { header: "Año", key: "year", width: 10 },
-            { header: "Valor", key: "value", width: 20, numFmt: "#,##0.00" },
-          ],
+          columns: INDICATOR_GOALS_COLUMNS,
           data: actionGoalsData,
         },
         {
           name: "Cuatrienios Plan Acción",
-          columns: [
-            { header: "Indicador (Código)", key: "indicatorCode", width: 18 },
-            { header: "Indicador (Nombre)", key: "indicatorName", width: 40 },
-            { header: "Año Inicio", key: "startYear", width: 12 },
-            { header: "Año Fin", key: "endYear", width: 12 },
-            { header: "Valor", key: "value", width: 20, numFmt: "#,##0.00" },
-          ],
+          columns: INDICATOR_QUADRENNIUMS_COLUMNS,
           data: actionQuadrenniumsData,
         },
         {
           name: "Metas Plan Indicativo",
-          columns: [
-            { header: "Indicador (Código)", key: "indicatorCode", width: 18 },
-            { header: "Indicador (Nombre)", key: "indicatorName", width: 40 },
-            { header: "Año", key: "year", width: 10 },
-            { header: "Valor", key: "value", width: 20, numFmt: "#,##0.00" },
-          ],
+          columns: INDICATOR_GOALS_COLUMNS,
           data: indicativeGoalsData,
         },
         {
           name: "Cuatrienios Plan Indicativo",
-          columns: [
-            { header: "Indicador (Código)", key: "indicatorCode", width: 18 },
-            { header: "Indicador (Nombre)", key: "indicatorName", width: 40 },
-            { header: "Año Inicio", key: "startYear", width: 12 },
-            { header: "Año Fin", key: "endYear", width: 12 },
-            { header: "Valor", key: "value", width: 20, numFmt: "#,##0.00" },
-          ],
+          columns: INDICATOR_QUADRENNIUMS_COLUMNS,
           data: indicativeQuadrenniumsData,
         },
         {
@@ -472,7 +458,7 @@ export class IndicatorsExportBuilder {
       indicatorName: row.indicator?.name ?? "",
     }));
 
-    const now = new Date().toISOString().slice(0, 10);
+    const now = getExportDate();
 
     return {
       fileName: `variables-${now}.xlsx`,
@@ -488,43 +474,22 @@ export class IndicatorsExportBuilder {
         },
         {
           name: "Metas Anuales",
-          columns: [
-            { header: "Variable (Código)", key: "variableCode", width: 18 },
-            { header: "Variable (Nombre)", key: "variableName", width: 40 },
-            { header: "Año", key: "year", width: 10 },
-            { header: "Valor", key: "value", width: 20, numFmt: "#,##0.00" },
-          ],
+          columns: VARIABLE_GOALS_COLUMNS,
           data: goalsData,
         },
         {
           name: "Cuatrienios",
-          columns: [
-            { header: "Variable (Código)", key: "variableCode", width: 18 },
-            { header: "Variable (Nombre)", key: "variableName", width: 40 },
-            { header: "Año Inicio", key: "startYear", width: 12 },
-            { header: "Año Fin", key: "endYear", width: 12 },
-            { header: "Valor", key: "value", width: 20, numFmt: "#,##0.00" },
-          ],
+          columns: VARIABLE_QUADRENNIUMS_COLUMNS,
           data: quadrenniumsData,
         },
         {
           name: "Ind. Plan Acción",
-          columns: [
-            { header: "Variable (Código)", key: "variableCode", width: 18 },
-            { header: "Variable (Nombre)", key: "variableName", width: 40 },
-            { header: "Indicador (Código)", key: "indicatorCode", width: 18 },
-            { header: "Indicador (Nombre)", key: "indicatorName", width: 40 },
-          ],
+          columns: VARIABLE_RELATION_COLUMNS,
           data: actionRelationsData,
         },
         {
           name: "Ind. Plan Indicativo",
-          columns: [
-            { header: "Variable (Código)", key: "variableCode", width: 18 },
-            { header: "Variable (Nombre)", key: "variableName", width: 40 },
-            { header: "Indicador (Código)", key: "indicatorCode", width: 18 },
-            { header: "Indicador (Nombre)", key: "indicatorName", width: 40 },
-          ],
+          columns: VARIABLE_RELATION_COLUMNS,
           data: indicativeRelationsData,
         },
       ],

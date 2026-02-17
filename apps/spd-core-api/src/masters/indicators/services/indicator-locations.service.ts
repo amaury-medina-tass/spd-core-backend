@@ -1,10 +1,11 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, Brackets } from "typeorm";
+import { Repository, Brackets, SelectQueryBuilder } from "typeorm";
 import { AuditLogService } from "@common/cosmosdb/audit-log.service";
 import { AuditAction, AuditEntityType } from "@common/types/audit.types";
 import { ErrorCodes } from "@common/errors/error-codes";
 import { SYSTEM_NAME } from "../../../shared/constants";
+import { buildPaginatedMeta, emptyPaginatedResponse, calculateSkip } from "../../../shared/helpers";
 import { IndicatorLocation } from "../entities/indicator-location.entity";
 import { Location } from "../../locations/entities/location.entity";
 import { IndicativePlanIndicator } from "../entities/indicative-plan/indicative-plan-indicator.entity";
@@ -13,6 +14,18 @@ import { VariableLocation } from "../../variables/entities/variable-location.ent
 import { Commune } from "../../locations/entities/commune.entity";
 import { VariableActionRelation } from "../entities/action-plan/variable-action-relation.entity";
 import { VariableIndicativeRelation } from "../entities/indicative-plan/variable-indicative-relation.entity";
+
+type IndicatorType = "action" | "indicative";
+
+interface IndicatorTypeConfig {
+    indicatorIdField: "actionIndicatorId" | "indicativeIndicatorId";
+    indicatorRepo: Repository<ActionPlanIndicator> | Repository<IndicativePlanIndicator>;
+    variableRelationRepo: Repository<VariableActionRelation> | Repository<VariableIndicativeRelation>;
+    notFoundCode: string;
+    notFoundMessage: string;
+    variableRelationAlias: string;
+    buildAllQuery: () => SelectQueryBuilder<any>;
+}
 
 @Injectable()
 export class IndicatorLocationsService {
@@ -38,29 +51,57 @@ export class IndicatorLocationsService {
         private readonly auditLog: AuditLogService,
     ) { }
 
-    async addLocationToIndicativeIndicator(indicatorId: string, locationId: string): Promise<IndicatorLocation> {
-        // Verify indicator exists
-        const indicator = await this.indicativePlanIndicatorRepository.findOne({ where: { id: indicatorId } });
+    private getTypeConfig(type: IndicatorType): IndicatorTypeConfig {
+        if (type === "action") {
+            return {
+                indicatorIdField: "actionIndicatorId",
+                indicatorRepo: this.actionPlanIndicatorRepository,
+                variableRelationRepo: this.variableActionRelationRepository,
+                notFoundCode: ErrorCodes.ACTION_INDICATOR_NOT_FOUND,
+                notFoundMessage: "Indicador de acción",
+                variableRelationAlias: "var",
+                buildAllQuery: () => this.actionPlanIndicatorRepository
+                    .createQueryBuilder("ind")
+                    .leftJoinAndSelect("ind.unitMeasure", "um"),
+            };
+        }
+        return {
+            indicatorIdField: "indicativeIndicatorId",
+            indicatorRepo: this.indicativePlanIndicatorRepository,
+            variableRelationRepo: this.variableIndicativeRelationRepository,
+            notFoundCode: ErrorCodes.INDICATIVE_INDICATOR_NOT_FOUND,
+            notFoundMessage: "Indicador indicativo",
+            variableRelationAlias: "vir",
+            buildAllQuery: () => this.indicativePlanIndicatorRepository
+                .createQueryBuilder("ind")
+                .leftJoinAndSelect("ind.unitMeasure", "um")
+                .leftJoinAndSelect("ind.indicatorType", "it")
+                .leftJoinAndSelect("ind.direction", "dir"),
+        };
+    }
+
+    private async addLocation(indicatorId: string, locationId: string, type: IndicatorType): Promise<IndicatorLocation> {
+        const config = this.getTypeConfig(type);
+
+        const indicator = await (config.indicatorRepo as Repository<any>).findOne({ where: { id: indicatorId } });
         if (!indicator) {
-            throw new NotFoundException({ message: `Indicador indicativo con id ${indicatorId} no encontrado`, code: ErrorCodes.INDICATIVE_INDICATOR_NOT_FOUND });
+            throw new NotFoundException({ message: `${config.notFoundMessage} con id ${indicatorId} no encontrado`, code: config.notFoundCode });
         }
 
-        // Verify location exists
         const location = await this.locationRepository.findOne({ where: { id: locationId } });
         if (!location) {
             throw new NotFoundException({ message: `Ubicación con id ${locationId} no encontrada`, code: ErrorCodes.LOCATION_NOT_FOUND });
         }
 
-        // Check if relation already exists
         const existing = await this.indicatorLocationRepository.findOne({
-            where: { indicativeIndicatorId: indicatorId, locationId }
+            where: { [config.indicatorIdField]: indicatorId, locationId }
         });
         if (existing) {
             throw new BadRequestException({ message: "Esta ubicación ya está asociada al indicador", code: ErrorCodes.INDICATOR_LOCATION_ALREADY_EXISTS });
         }
 
         const relation = this.indicatorLocationRepository.create({
-            indicativeIndicatorId: indicatorId,
+            [config.indicatorIdField]: indicatorId,
             locationId,
         });
 
@@ -69,150 +110,100 @@ export class IndicatorLocationsService {
         await this.auditLog.logSuccess(AuditAction.INDICATOR_LOCATION_ADDED, AuditEntityType.INDICATOR_LOCATION, saved.id, {
             entityName: `${indicator.code ?? indicatorId} - ${location.address ?? locationId}`,
             system: SYSTEM_NAME,
-            metadata: { indicatorId, locationId, type: 'indicative' },
+            metadata: { indicatorId, locationId, type },
         });
 
         return saved;
+    }
+
+    private async removeLocation(indicatorId: string, locationId: string, type: IndicatorType): Promise<void> {
+        const config = this.getTypeConfig(type);
+
+        const relation = await this.indicatorLocationRepository.findOne({
+            where: { [config.indicatorIdField]: indicatorId, locationId }
+        });
+
+        if (!relation) {
+            throw new NotFoundException({ message: "Relación no encontrada", code: ErrorCodes.INDICATOR_LOCATION_NOT_FOUND });
+        }
+
+        const relationId = relation.id;
+        await this.indicatorLocationRepository.remove(relation);
+
+        const indicator = await (config.indicatorRepo as Repository<any>).findOne({ where: { id: indicatorId } });
+        const location = await this.locationRepository.findOne({ where: { id: locationId } });
+
+        await this.auditLog.logSuccess(AuditAction.INDICATOR_LOCATION_REMOVED, AuditEntityType.INDICATOR_LOCATION, relationId, {
+            entityName: `${indicator?.code ?? indicatorId} - ${location?.address ?? locationId}`,
+            system: SYSTEM_NAME,
+            metadata: { indicatorId, locationId, type },
+        });
+    }
+
+    private async findByIndicator(indicatorId: string, type: IndicatorType) {
+        const config = this.getTypeConfig(type);
+        const relations = await this.indicatorLocationRepository.find({
+            where: { [config.indicatorIdField]: indicatorId },
+            relations: ["location", "location.commune"],
+            order: { createAt: "DESC" },
+        });
+
+        return relations.map(r => ({
+            id: r.id,
+            locationId: r.locationId,
+            location: r.location,
+            createAt: r.createAt,
+        }));
+    }
+
+    async addLocationToIndicativeIndicator(indicatorId: string, locationId: string): Promise<IndicatorLocation> {
+        return this.addLocation(indicatorId, locationId, "indicative");
     }
 
     async addLocationToActionIndicator(indicatorId: string, locationId: string): Promise<IndicatorLocation> {
-        // Verify indicator exists
-        const indicator = await this.actionPlanIndicatorRepository.findOne({ where: { id: indicatorId } });
-        if (!indicator) {
-            throw new NotFoundException({ message: `Indicador de acción con id ${indicatorId} no encontrado`, code: ErrorCodes.ACTION_INDICATOR_NOT_FOUND });
-        }
-
-        // Verify location exists
-        const location = await this.locationRepository.findOne({ where: { id: locationId } });
-        if (!location) {
-            throw new NotFoundException({ message: `Ubicación con id ${locationId} no encontrada`, code: ErrorCodes.LOCATION_NOT_FOUND });
-        }
-
-        // Check if relation already exists
-        const existing = await this.indicatorLocationRepository.findOne({
-            where: { actionIndicatorId: indicatorId, locationId }
-        });
-        if (existing) {
-            throw new BadRequestException({ message: "Esta ubicación ya está asociada al indicador", code: ErrorCodes.INDICATOR_LOCATION_ALREADY_EXISTS });
-        }
-
-        const relation = this.indicatorLocationRepository.create({
-            actionIndicatorId: indicatorId,
-            locationId,
-        });
-
-        const saved = await this.indicatorLocationRepository.save(relation);
-
-        await this.auditLog.logSuccess(AuditAction.INDICATOR_LOCATION_ADDED, AuditEntityType.INDICATOR_LOCATION, saved.id, {
-            entityName: `${indicator.code ?? indicatorId} - ${location.address ?? locationId}`,
-            system: SYSTEM_NAME,
-            metadata: { indicatorId, locationId, type: 'action' },
-        });
-
-        return saved;
+        return this.addLocation(indicatorId, locationId, "action");
     }
 
     async removeLocationFromIndicativeIndicator(indicatorId: string, locationId: string): Promise<void> {
-        const relation = await this.indicatorLocationRepository.findOne({
-            where: { indicativeIndicatorId: indicatorId, locationId }
-        });
-
-        if (!relation) {
-            throw new NotFoundException({ message: "Relación no encontrada", code: ErrorCodes.INDICATOR_LOCATION_NOT_FOUND });
-        }
-
-        const relationId = relation.id;
-        await this.indicatorLocationRepository.remove(relation);
-
-        const indicator = await this.indicativePlanIndicatorRepository.findOne({ where: { id: indicatorId } });
-        const location = await this.locationRepository.findOne({ where: { id: locationId } });
-
-        await this.auditLog.logSuccess(AuditAction.INDICATOR_LOCATION_REMOVED, AuditEntityType.INDICATOR_LOCATION, relationId, {
-            entityName: `${indicator?.code ?? indicatorId} - ${location?.address ?? locationId}`,
-            system: SYSTEM_NAME,
-            metadata: { indicatorId, locationId, type: 'indicative' },
-        });
+        return this.removeLocation(indicatorId, locationId, "indicative");
     }
 
     async removeLocationFromActionIndicator(indicatorId: string, locationId: string): Promise<void> {
-        const relation = await this.indicatorLocationRepository.findOne({
-            where: { actionIndicatorId: indicatorId, locationId }
-        });
-
-        if (!relation) {
-            throw new NotFoundException({ message: "Relación no encontrada", code: ErrorCodes.INDICATOR_LOCATION_NOT_FOUND });
-        }
-
-        const relationId = relation.id;
-        await this.indicatorLocationRepository.remove(relation);
-
-        const indicator = await this.actionPlanIndicatorRepository.findOne({ where: { id: indicatorId } });
-        const location = await this.locationRepository.findOne({ where: { id: locationId } });
-
-        await this.auditLog.logSuccess(AuditAction.INDICATOR_LOCATION_REMOVED, AuditEntityType.INDICATOR_LOCATION, relationId, {
-            entityName: `${indicator?.code ?? indicatorId} - ${location?.address ?? locationId}`,
-            system: SYSTEM_NAME,
-            metadata: { indicatorId, locationId, type: 'action' },
-        });
+        return this.removeLocation(indicatorId, locationId, "action");
     }
 
     async findByIndicativeIndicator(indicatorId: string) {
-        const relations = await this.indicatorLocationRepository.find({
-            where: { indicativeIndicatorId: indicatorId },
-            relations: ["location", "location.commune"],
-            order: { createAt: "DESC" },
-        });
-
-        return relations.map(r => ({
-            id: r.id,
-            locationId: r.locationId,
-            location: r.location,
-            createAt: r.createAt,
-        }));
+        return this.findByIndicator(indicatorId, "indicative");
     }
 
     async findByActionIndicator(indicatorId: string) {
-        const relations = await this.indicatorLocationRepository.find({
-            where: { actionIndicatorId: indicatorId },
-            relations: ["location", "location.commune"],
-            order: { createAt: "DESC" },
-        });
-
-        return relations.map(r => ({
-            id: r.id,
-            locationId: r.locationId,
-            location: r.location,
-            createAt: r.createAt,
-        }));
+        return this.findByIndicator(indicatorId, "action");
     }
 
-    /**
-     * Busca indicadores de acción por código de comuna
-     * 1. Indicadores con ubicación directa en la comuna
-     * 2. Indicadores cuyas variables tienen ubicaciones en la comuna
-     * Si communeCode es 'all', retorna todos los indicadores
-     */
-    async findActionIndicatorsByCommuneCode(
+    private applyIndicatorSearchFilter(queryBuilder: SelectQueryBuilder<any>, search?: string) {
+        if (search) {
+            queryBuilder.andWhere(new Brackets((qb) => {
+                qb.where("ind.code ILIKE :search", { search: `%${search}%` })
+                    .orWhere("ind.name ILIKE :search", { search: `%${search}%` })
+                    .orWhere("ind.description ILIKE :search", { search: `%${search}%` });
+            }));
+        }
+    }
+
+    private async findIndicatorsByCommuneCode(
         communeCode: string,
+        type: IndicatorType,
         page: number = 1,
         limit: number = 10,
         search?: string
     ) {
-        const skip = (page - 1) * limit;
+        const skip = calculateSkip(page, limit);
+        const config = this.getTypeConfig(type);
 
         // Si es 'all', traer todos los indicadores
         if (communeCode.toLowerCase() === "all") {
-            const queryBuilder = this.actionPlanIndicatorRepository
-                .createQueryBuilder("ind")
-                .leftJoinAndSelect("ind.unitMeasure", "um");
-
-            if (search) {
-                queryBuilder.where(new Brackets((qb) => {
-                    qb.where("ind.code ILIKE :search", { search: `%${search}%` })
-                        .orWhere("ind.name ILIKE :search", { search: `%${search}%` })
-                        .orWhere("ind.description ILIKE :search", { search: `%${search}%` });
-                }));
-            }
+            const queryBuilder = config.buildAllQuery();
+            this.applyIndicatorSearchFilter(queryBuilder, search);
 
             const [indicators, total] = await queryBuilder
                 .orderBy("ind.code", "ASC")
@@ -220,23 +211,9 @@ export class IndicatorLocationsService {
                 .take(limit)
                 .getManyAndCount();
 
-            const totalPages = Math.ceil(total / limit);
-
-            const data = indicators.map(ind => ({
-                ...ind,
-                matchSource: "all",
-            }));
-
             return {
-                data,
-                meta: {
-                    total,
-                    page,
-                    limit,
-                    totalPages,
-                    hasNextPage: page < totalPages,
-                    hasPreviousPage: page > 1,
-                },
+                data: indicators.map(ind => ({ ...ind, matchSource: "all" })),
+                meta: buildPaginatedMeta(total, page, limit),
             };
         }
 
@@ -252,18 +229,18 @@ export class IndicatorLocationsService {
             .innerJoin("il.location", "loc")
             .innerJoin("loc.commune", "com")
             .where("com.code = :communeCode", { communeCode })
-            .andWhere("il.actionIndicatorId IS NOT NULL")
-            .select("DISTINCT il.actionIndicatorId", "indicatorId")
+            .andWhere(`il.${config.indicatorIdField} IS NOT NULL`)
+            .select(`DISTINCT il.${config.indicatorIdField}`, "indicatorId")
             .getRawMany();
 
         // 2. Indicadores cuyas variables tienen ubicaciones en la comuna
-        const variableIndicatorIds = await this.variableActionRelationRepository
-            .createQueryBuilder("var")
-            .innerJoin(VariableLocation, "vl", "vl.variableId = var.variableId")
+        const variableIndicatorIds = await (config.variableRelationRepo as Repository<any>)
+            .createQueryBuilder(config.variableRelationAlias)
+            .innerJoin(VariableLocation, "vl", `vl.variableId = ${config.variableRelationAlias}.variableId`)
             .innerJoin("vl.location", "loc")
             .innerJoin("loc.commune", "com")
             .where("com.code = :communeCode", { communeCode })
-            .select("DISTINCT var.indicatorId", "indicatorId")
+            .select(`DISTINCT ${config.variableRelationAlias}.indicatorId`, "indicatorId")
             .getRawMany();
 
         // Combinar IDs únicos
@@ -273,25 +250,14 @@ export class IndicatorLocationsService {
         ]);
 
         if (allIds.size === 0) {
-            return {
-                data: [],
-                meta: { total: 0, page, limit, totalPages: 0, hasNextPage: false, hasPreviousPage: false },
-            };
+            return emptyPaginatedResponse(page, limit);
         }
 
         // Query con paginación y búsqueda
-        const queryBuilder = this.actionPlanIndicatorRepository
-            .createQueryBuilder("ind")
-            .leftJoinAndSelect("ind.unitMeasure", "um")
+        const queryBuilder = config.buildAllQuery()
             .where("ind.id IN (:...ids)", { ids: Array.from(allIds) });
 
-        if (search) {
-            queryBuilder.andWhere(new Brackets((qb) => {
-                qb.where("ind.code ILIKE :search", { search: `%${search}%` })
-                    .orWhere("ind.name ILIKE :search", { search: `%${search}%` })
-                    .orWhere("ind.description ILIKE :search", { search: `%${search}%` });
-            }));
-        }
+        this.applyIndicatorSearchFilter(queryBuilder, search);
 
         const [indicators, total] = await queryBuilder
             .orderBy("ind.code", "ASC")
@@ -299,378 +265,126 @@ export class IndicatorLocationsService {
             .take(limit)
             .getManyAndCount();
 
-        const totalPages = Math.ceil(total / limit);
-
-        // Agregar información de origen (directo o por variable)
-        const data = indicators.map(ind => ({
-            ...ind,
-            matchSource: directIndicatorIds.some(d => d.indicatorId === ind.id) ? "direct" : "variable",
-        }));
-
         return {
-            data,
-            meta: {
-                total,
-                page,
-                limit,
-                totalPages,
-                hasNextPage: page < totalPages,
-                hasPreviousPage: page > 1,
-            },
+            data: indicators.map(ind => ({
+                ...ind,
+                matchSource: directIndicatorIds.some(d => d.indicatorId === ind.id) ? "direct" : "variable",
+            })),
+            meta: buildPaginatedMeta(total, page, limit),
         };
     }
 
     /**
-     * Busca indicadores indicativos por código de comuna
-     * 1. Indicadores con ubicación directa en la comuna
-     * 2. Indicadores cuyas variables tienen ubicaciones en la comuna
-     * Si communeCode es 'all', retorna todos los indicadores
+     * Busca indicadores de acción por código de comuna
      */
-    async findIndicativeIndicatorsByCommuneCode(
-        communeCode: string,
+    async findActionIndicatorsByCommuneCode(communeCode: string, page: number = 1, limit: number = 10, search?: string) {
+        return this.findIndicatorsByCommuneCode(communeCode, "action", page, limit, search);
+    }
+
+    /**
+     * Busca indicadores indicativos por código de comuna
+     */
+    async findIndicativeIndicatorsByCommuneCode(communeCode: string, page: number = 1, limit: number = 10, search?: string) {
+        return this.findIndicatorsByCommuneCode(communeCode, "indicative", page, limit, search);
+    }
+
+    /**
+     * Busca variables asociadas a un indicador que compartan la misma comuna o ubicación (genérico)
+     */
+    private async findVariablesByIndicatorLocation(
+        indicatorId: string,
+        type: IndicatorType,
         page: number = 1,
         limit: number = 10,
         search?: string
     ) {
-        const skip = (page - 1) * limit;
+        const config = this.getTypeConfig(type);
 
-        // Si es 'all', traer todos los indicadores
-        if (communeCode.toLowerCase() === "all") {
-            const queryBuilder = this.indicativePlanIndicatorRepository
-                .createQueryBuilder("ind")
-                .leftJoinAndSelect("ind.unitMeasure", "um")
-                .leftJoinAndSelect("ind.indicatorType", "it")
-                .leftJoinAndSelect("ind.direction", "dir");
-
-            if (search) {
-                queryBuilder.where(new Brackets((qb) => {
-                    qb.where("ind.code ILIKE :search", { search: `%${search}%` })
-                        .orWhere("ind.name ILIKE :search", { search: `%${search}%` })
-                        .orWhere("ind.description ILIKE :search", { search: `%${search}%` });
-                }));
-            }
-
-            const [indicators, total] = await queryBuilder
-                .orderBy("ind.code", "ASC")
-                .skip(skip)
-                .take(limit)
-                .getManyAndCount();
-
-            const totalPages = Math.ceil(total / limit);
-
-            const data = indicators.map(ind => ({
-                ...ind,
-                matchSource: "all",
-            }));
-
-            return {
-                data,
-                meta: {
-                    total,
-                    page,
-                    limit,
-                    totalPages,
-                    hasNextPage: page < totalPages,
-                    hasPreviousPage: page > 1,
-                },
-            };
+        const indicator = await (config.indicatorRepo as Repository<any>).findOne({ where: { id: indicatorId } });
+        if (!indicator) {
+            throw new NotFoundException({ message: `${config.notFoundMessage} con id ${indicatorId} no encontrado`, code: config.notFoundCode });
         }
 
-        // Verificar que la comuna existe
-        const commune = await this.communeRepository.findOne({ where: { code: communeCode } });
-        if (!commune) {
-            throw new NotFoundException({ message: `Comuna con código ${communeCode} no encontrada`, code: ErrorCodes.COMMUNE_NOT_FOUND });
+        const skip = calculateSkip(page, limit);
+
+        const indicatorLocations = await this.indicatorLocationRepository.find({
+            where: { [config.indicatorIdField]: indicatorId },
+            relations: ["location", "location.commune"],
+        });
+
+        if (indicatorLocations.length === 0) {
+            return emptyPaginatedResponse(page, limit);
         }
 
-        // 1. Indicadores con ubicación directa en la comuna
-        const directIndicatorIds = await this.indicatorLocationRepository
-            .createQueryBuilder("il")
-            .innerJoin("il.location", "loc")
-            .innerJoin("loc.commune", "com")
-            .where("com.code = :communeCode", { communeCode })
-            .andWhere("il.indicativeIndicatorId IS NOT NULL")
-            .select("DISTINCT il.indicativeIndicatorId", "indicatorId")
-            .getRawMany();
+        const locationIds = indicatorLocations.map(il => il.locationId);
+        const communeIds = [...new Set(indicatorLocations.map(il => il.location.communeId))];
 
-        // 2. Indicadores cuyas variables tienen ubicaciones en la comuna
-        const variableIndicatorIds = await this.variableIndicativeRelationRepository
-            .createQueryBuilder("vir")
-            .innerJoin(VariableLocation, "vl", "vl.variableId = vir.variableId")
-            .innerJoin("vl.location", "loc")
-            .innerJoin("loc.commune", "com")
-            .where("com.code = :communeCode", { communeCode })
-            .select("DISTINCT vir.indicatorId", "indicatorId")
-            .getRawMany();
+        const variableRelations = await (config.variableRelationRepo as Repository<any>).find({
+            where: { indicatorId },
+            relations: ["variable"],
+        });
 
-        // Combinar IDs únicos
-        const allIds = new Set<string>([
-            ...directIndicatorIds.map(r => r.indicatorId),
-            ...variableIndicatorIds.map(r => r.indicatorId),
-        ]);
-
-        if (allIds.size === 0) {
-            return {
-                data: [],
-                meta: { total: 0, page, limit, totalPages: 0, hasNextPage: false, hasPreviousPage: false },
-            };
+        if (variableRelations.length === 0) {
+            return emptyPaginatedResponse(page, limit);
         }
 
-        // Query con paginación y búsqueda
-        const queryBuilder = this.indicativePlanIndicatorRepository
-            .createQueryBuilder("ind")
-            .leftJoinAndSelect("ind.unitMeasure", "um")
-            .leftJoinAndSelect("ind.indicatorType", "it")
-            .leftJoinAndSelect("ind.direction", "dir")
-            .where("ind.id IN (:...ids)", { ids: Array.from(allIds) });
+        const variableIds = variableRelations.map(vr => vr.variableId);
+
+        const queryBuilder = this.variableLocationRepository
+            .createQueryBuilder("vl")
+            .innerJoinAndSelect("vl.variable", "var")
+            .innerJoinAndSelect("vl.location", "loc")
+            .innerJoinAndSelect("loc.commune", "com")
+            .where("vl.variableId IN (:...variableIds)", { variableIds })
+            .andWhere("(vl.locationId IN (:...locationIds) OR loc.communeId IN (:...communeIds))", {
+                locationIds,
+                communeIds,
+            });
 
         if (search) {
             queryBuilder.andWhere(new Brackets((qb) => {
-                qb.where("ind.code ILIKE :search", { search: `%${search}%` })
-                    .orWhere("ind.name ILIKE :search", { search: `%${search}%` })
-                    .orWhere("ind.description ILIKE :search", { search: `%${search}%` });
+                qb.where("var.code ILIKE :search", { search: `%${search}%` })
+                    .orWhere("var.name ILIKE :search", { search: `%${search}%` });
             }));
         }
 
-        const [indicators, total] = await queryBuilder
-            .orderBy("ind.code", "ASC")
-            .skip(skip)
-            .take(limit)
-            .getManyAndCount();
+        const matchingVariableLocations = await queryBuilder.getMany();
 
-        const totalPages = Math.ceil(total / limit);
+        const variableMap = new Map<string, { variable: any; matchType: string }>();
 
-        // Agregar información de origen (directo o por variable)
-        const data = indicators.map(ind => ({
-            ...ind,
-            matchSource: directIndicatorIds.some(d => d.indicatorId === ind.id) ? "direct" : "variable",
-        }));
+        for (const vl of matchingVariableLocations) {
+            const matchType = locationIds.includes(vl.locationId) ? "location" : "commune";
+
+            if (!variableMap.has(vl.variableId)) {
+                variableMap.set(vl.variableId, { variable: vl.variable, matchType });
+            }
+
+            if (matchType === "location") {
+                variableMap.get(vl.variableId)!.matchType = "location";
+            }
+        }
+
+        const allResults = Array.from(variableMap.values());
+        const total = allResults.length;
+        const data = allResults.slice(skip, skip + limit);
 
         return {
             data,
-            meta: {
-                total,
-                page,
-                limit,
-                totalPages,
-                hasNextPage: page < totalPages,
-                hasPreviousPage: page > 1,
-            },
+            meta: buildPaginatedMeta(total, page, limit),
         };
     }
 
     /**
      * Busca variables asociadas a un indicador de acción que compartan la misma comuna o ubicación
      */
-    async findVariablesByActionIndicatorLocation(
-        indicatorId: string,
-        page: number = 1,
-        limit: number = 10,
-        search?: string
-    ) {
-        // Verificar que el indicador existe
-        const indicator = await this.actionPlanIndicatorRepository.findOne({ where: { id: indicatorId } });
-        if (!indicator) {
-            throw new NotFoundException({ message: `Indicador de acción con id ${indicatorId} no encontrado`, code: ErrorCodes.ACTION_INDICATOR_NOT_FOUND });
-        }
-
-        const skip = (page - 1) * limit;
-
-        // Obtener las ubicaciones del indicador
-        const indicatorLocations = await this.indicatorLocationRepository.find({
-            where: { actionIndicatorId: indicatorId },
-            relations: ["location", "location.commune"],
-        });
-
-        if (indicatorLocations.length === 0) {
-            return {
-                data: [],
-                meta: { total: 0, page, limit, totalPages: 0, hasNextPage: false, hasPreviousPage: false },
-            };
-        }
-
-        // Obtener IDs de ubicaciones y comunas del indicador
-        const locationIds = indicatorLocations.map(il => il.locationId);
-        const communeIds = [...new Set(indicatorLocations.map(il => il.location.communeId))];
-
-        // Obtener variables asociadas al indicador
-        const variableRelations = await this.variableActionRelationRepository.find({
-            where: { indicatorId },
-            relations: ["variable"],
-        });
-
-        if (variableRelations.length === 0) {
-            return {
-                data: [],
-                meta: { total: 0, page, limit, totalPages: 0, hasNextPage: false, hasPreviousPage: false },
-            };
-        }
-
-        const variableIds = variableRelations.map(vr => vr.variableId);
-
-        // Buscar variable_locations que coincidan con las ubicaciones o comunas del indicador
-        const queryBuilder = this.variableLocationRepository
-            .createQueryBuilder("vl")
-            .innerJoinAndSelect("vl.variable", "var")
-            .innerJoinAndSelect("vl.location", "loc")
-            .innerJoinAndSelect("loc.commune", "com")
-            .where("vl.variableId IN (:...variableIds)", { variableIds })
-            .andWhere("(vl.locationId IN (:...locationIds) OR loc.communeId IN (:...communeIds))", {
-                locationIds,
-                communeIds,
-            });
-
-        if (search) {
-            queryBuilder.andWhere(new Brackets((qb) => {
-                qb.where("var.code ILIKE :search", { search: `%${search}%` })
-                    .orWhere("var.name ILIKE :search", { search: `%${search}%` });
-            }));
-        }
-
-        const matchingVariableLocations = await queryBuilder.getMany();
-
-        // Agrupar por variable y agregar info de match
-        const variableMap = new Map<string, { variable: any; matchType: string }>();
-
-        for (const vl of matchingVariableLocations) {
-            const matchType = locationIds.includes(vl.locationId) ? "location" : "commune";
-
-            if (!variableMap.has(vl.variableId)) {
-                variableMap.set(vl.variableId, {
-                    variable: vl.variable,
-                    matchType,
-                });
-            }
-
-            // Si encuentra match por location, es más específico que commune
-            if (matchType === "location") {
-                const entry = variableMap.get(vl.variableId)!;
-                entry.matchType = "location";
-            }
-        }
-
-        const allResults = Array.from(variableMap.values());
-        const total = allResults.length;
-        const totalPages = Math.ceil(total / limit);
-        const data = allResults.slice(skip, skip + limit);
-
-        return {
-            data,
-            meta: {
-                total,
-                page,
-                limit,
-                totalPages,
-                hasNextPage: page < totalPages,
-                hasPreviousPage: page > 1,
-            },
-        };
+    async findVariablesByActionIndicatorLocation(indicatorId: string, page: number = 1, limit: number = 10, search?: string) {
+        return this.findVariablesByIndicatorLocation(indicatorId, "action", page, limit, search);
     }
 
     /**
      * Busca variables asociadas a un indicador indicativo que compartan la misma comuna o ubicación
      */
-    async findVariablesByIndicativeIndicatorLocation(
-        indicatorId: string,
-        page: number = 1,
-        limit: number = 10,
-        search?: string
-    ) {
-        // Verificar que el indicador existe
-        const indicator = await this.indicativePlanIndicatorRepository.findOne({ where: { id: indicatorId } });
-        if (!indicator) {
-            throw new NotFoundException({ message: `Indicador indicativo con id ${indicatorId} no encontrado`, code: ErrorCodes.INDICATIVE_INDICATOR_NOT_FOUND });
-        }
-
-        const skip = (page - 1) * limit;
-
-        // Obtener las ubicaciones del indicador
-        const indicatorLocations = await this.indicatorLocationRepository.find({
-            where: { indicativeIndicatorId: indicatorId },
-            relations: ["location", "location.commune"],
-        });
-
-        if (indicatorLocations.length === 0) {
-            return {
-                data: [],
-                meta: { total: 0, page, limit, totalPages: 0, hasNextPage: false, hasPreviousPage: false },
-            };
-        }
-
-        // Obtener IDs de ubicaciones y comunas del indicador
-        const locationIds = indicatorLocations.map(il => il.locationId);
-        const communeIds = [...new Set(indicatorLocations.map(il => il.location.communeId))];
-
-        // Obtener variables asociadas al indicador
-        const variableRelations = await this.variableIndicativeRelationRepository.find({
-            where: { indicatorId },
-            relations: ["variable"],
-        });
-
-        if (variableRelations.length === 0) {
-            return {
-                data: [],
-                meta: { total: 0, page, limit, totalPages: 0, hasNextPage: false, hasPreviousPage: false },
-            };
-        }
-
-        const variableIds = variableRelations.map(vr => vr.variableId);
-
-        // Buscar variable_locations que coincidan con las ubicaciones o comunas del indicador
-        const queryBuilder = this.variableLocationRepository
-            .createQueryBuilder("vl")
-            .innerJoinAndSelect("vl.variable", "var")
-            .innerJoinAndSelect("vl.location", "loc")
-            .innerJoinAndSelect("loc.commune", "com")
-            .where("vl.variableId IN (:...variableIds)", { variableIds })
-            .andWhere("(vl.locationId IN (:...locationIds) OR loc.communeId IN (:...communeIds))", {
-                locationIds,
-                communeIds,
-            });
-
-        if (search) {
-            queryBuilder.andWhere(new Brackets((qb) => {
-                qb.where("var.code ILIKE :search", { search: `%${search}%` })
-                    .orWhere("var.name ILIKE :search", { search: `%${search}%` });
-            }));
-        }
-
-        const matchingVariableLocations = await queryBuilder.getMany();
-
-        // Agrupar por variable y agregar info de match
-        const variableMap = new Map<string, { variable: any; matchType: string }>();
-
-        for (const vl of matchingVariableLocations) {
-            const matchType = locationIds.includes(vl.locationId) ? "location" : "commune";
-
-            if (!variableMap.has(vl.variableId)) {
-                variableMap.set(vl.variableId, {
-                    variable: vl.variable,
-                    matchType,
-                });
-            }
-
-            // Si encuentra match por location, es más específico que commune
-            if (matchType === "location") {
-                const entry = variableMap.get(vl.variableId)!;
-                entry.matchType = "location";
-            }
-        }
-
-        const allResults = Array.from(variableMap.values());
-        const total = allResults.length;
-        const totalPages = Math.ceil(total / limit);
-        const data = allResults.slice(skip, skip + limit);
-
-        return {
-            data,
-            meta: {
-                total,
-                page,
-                limit,
-                totalPages,
-                hasNextPage: page < totalPages,
-                hasPreviousPage: page > 1,
-            },
-        };
+    async findVariablesByIndicativeIndicatorLocation(indicatorId: string, page: number = 1, limit: number = 10, search?: string) {
+        return this.findVariablesByIndicatorLocation(indicatorId, "indicative", page, limit, search);
     }
 }

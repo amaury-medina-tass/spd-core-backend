@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, Brackets } from "typeorm";
 import { Rubric } from "../entities/rubric.entity";
+import { executeFindForSelect } from "../../../shared/helpers";
 
 @Injectable()
 export class RubricsService {
@@ -15,30 +16,21 @@ export class RubricsService {
             .createQueryBuilder("rubric")
             .select(["rubric.id", "rubric.code", "rubric.level", "rubric.type", "rubric.accountName", "rubric.description"]);
 
-        if (search) {
-            queryBuilder.where(
-                new Brackets((qb) => {
-                    qb.where("rubric.code ILIKE :search", { search: `%${search}%` })
-                        .orWhere("rubric.description ILIKE :search", { search: `%${search}%` })
-                        .orWhere("rubric.accountName ILIKE :search", { search: `%${search}%` });
-                })
-            );
-        }
-
-        const [data, total] = await queryBuilder
-            .orderBy("rubric.code", "ASC")
-            .skip(offset)
-            .take(limit)
-            .getManyAndCount();
-
-        return {
-            data,
-            meta: {
-                total,
-                limit,
-                offset,
-                hasMore: offset + data.length < total,
+        return executeFindForSelect({
+            queryBuilder,
+            applySearch: (qb, s) => {
+                qb.where(
+                    new Brackets((b) => {
+                        b.where("rubric.code ILIKE :search", { search: `%${s}%` })
+                            .orWhere("rubric.description ILIKE :search", { search: `%${s}%` })
+                            .orWhere("rubric.accountName ILIKE :search", { search: `%${s}%` });
+                    })
+                );
             },
-        };
+            orderBy: [["rubric.code", "ASC"]],
+            search,
+            limit,
+            offset,
+        });
     }
 }

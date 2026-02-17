@@ -4,6 +4,7 @@ import { Repository, Brackets } from "typeorm";
 import { Location } from "../entities/location.entity";
 import { Commune } from "../entities/commune.entity";
 import { CreateLocationDto } from "../dtos/create-location.dto";
+import { executeFindForSelect } from "../../../shared/helpers";
 
 @Injectable()
 export class LocationsService {
@@ -68,36 +69,26 @@ export class LocationsService {
                 "commune.name",
             ]);
 
-        if (search) {
-            queryBuilder.where(
-                new Brackets((qb) => {
-                    qb.where("location.address ILIKE :search", { search: `%${search}%` })
-                        .orWhere("location.normalizedAddress ILIKE :search", { search: `%${search}%` })
-                        .orWhere("commune.name ILIKE :search", { search: `%${search}%` });
-                })
-            );
-        }
-
         if (communeId) {
-            queryBuilder.andWhere("location.communeId = :communeId", { communeId });
+            queryBuilder.where("location.communeId = :communeId", { communeId });
         }
 
-        const [data, total] = await queryBuilder
-            .orderBy("commune.name", "ASC")
-            .addOrderBy("location.address", "ASC")
-            .skip(offset)
-            .take(limit)
-            .getManyAndCount();
-
-        return {
-            data,
-            meta: {
-                total,
-                limit,
-                offset,
-                hasMore: offset + data.length < total,
+        return executeFindForSelect({
+            queryBuilder,
+            search,
+            limit,
+            offset,
+            orderBy: [["commune.name", "ASC"], ["location.address", "ASC"]],
+            applySearch: (qb, s) => {
+                qb.andWhere(
+                    new Brackets((sub) => {
+                        sub.where("location.address ILIKE :search", { search: `%${s}%` })
+                            .orWhere("location.normalizedAddress ILIKE :search", { search: `%${s}%` })
+                            .orWhere("commune.name ILIKE :search", { search: `%${s}%` });
+                    }),
+                );
             },
-        };
+        });
     }
 
     private handleDBExceptions(error: any) {

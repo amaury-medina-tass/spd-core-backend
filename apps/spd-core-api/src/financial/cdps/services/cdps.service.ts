@@ -3,6 +3,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, Brackets } from "typeorm";
 import { Cdp } from "../entities/cdp.entity";
 import { ErrorCodes } from "@common/errors/error-codes";
+import { executeFindForSelect, findAllPaginatedByParent } from "../../../shared/helpers";
 
 @Injectable()
 export class CdpsService {
@@ -18,62 +19,29 @@ export class CdpsService {
         sortBy?: string,
         sortOrder?: "ASC" | "DESC"
     ) {
-        const skip = (page - 1) * limit;
-
-        const validSortOrder =
-            sortOrder === "ASC" || sortOrder === "DESC" ? sortOrder : "DESC";
-
-        const sortableFields = [
-            "createAt",
-            "updateAt",
-            "number",
-            "totalValue",
-            "balance",
-            "dateIssue",
-            "project.code",
-            "project.name"
-        ];
-        const validSortBy =
-            sortBy && sortableFields.includes(sortBy) ? sortBy : "createAt";
-
         const queryBuilder = this.repo
             .createQueryBuilder("cdp")
             .leftJoin("cdp.cdpProjects", "cdpProjects")
             .leftJoin("cdpProjects.project", "project")
             .addSelect(["cdp", "project.id", "project.code", "project.name"]);
 
-        if (search) {
-            queryBuilder.where(new Brackets((qb) => {
-                qb.where("cdp.number ILIKE :search", { search: `%${search}%` })
-                    .orWhere("project.code ILIKE :search", { search: `%${search}%` })
-                    .orWhere("project.name ILIKE :search", { search: `%${search}%` });
-            }));
-        }
-
-        if (validSortBy.includes(".")) {
-            const [relation, field] = validSortBy.split(".");
-            queryBuilder.orderBy(`${relation}.${field}`, validSortOrder);
-        } else {
-            queryBuilder.orderBy(`cdp.${validSortBy}`, validSortOrder);
-        }
-
-        queryBuilder.skip(skip).take(limit);
-
-        const [data, total] = await queryBuilder.getManyAndCount();
-
-        const totalPages = Math.ceil(total / limit);
-
-        return {
-            data,
-            meta: {
-                total,
-                page,
-                limit,
-                totalPages,
-                hasNextPage: page < totalPages,
-                hasPreviousPage: page > 1,
+        return findAllPaginatedByParent({
+            queryBuilder,
+            alias: "cdp",
+            applySearch: (qb, s) => {
+                qb.where(new Brackets((b) => {
+                    b.where("cdp.number ILIKE :search", { search: `%${s}%` })
+                        .orWhere("project.code ILIKE :search", { search: `%${s}%` })
+                        .orWhere("project.name ILIKE :search", { search: `%${s}%` });
+                }));
             },
-        };
+            sortableFields: ["createAt", "updateAt", "number", "totalValue", "balance", "dateIssue", "project.code", "project.name"],
+            page,
+            limit,
+            search,
+            sortBy,
+            sortOrder,
+        });
     }
 
     async findOne(id: string) {
@@ -102,28 +70,19 @@ export class CdpsService {
             .createQueryBuilder("cdp")
             .select(["cdp.id", "cdp.number"]);
 
-        if (search) {
-            queryBuilder.where(
-                new Brackets((qb) => {
-                    qb.where("cdp.number ILIKE :search", { search: `%${search}%` });
-                })
-            );
-        }
-
-        const [data, total] = await queryBuilder
-            .orderBy("cdp.number", "ASC")
-            .skip(offset)
-            .take(limit)
-            .getManyAndCount();
-
-        return {
-            data,
-            meta: {
-                total,
-                limit,
-                offset,
-                hasMore: offset + data.length < total,
+        return executeFindForSelect({
+            queryBuilder,
+            applySearch: (qb, s) => {
+                qb.where(
+                    new Brackets((b) => {
+                        b.where("cdp.number ILIKE :search", { search: `%${s}%` });
+                    })
+                );
             },
-        };
+            orderBy: [["cdp.number", "ASC"]],
+            search,
+            limit,
+            offset,
+        });
     }
 }

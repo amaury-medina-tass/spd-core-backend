@@ -2,6 +2,13 @@ import { Injectable, Logger } from "@nestjs/common";
 import { PoaiPpaService } from "../../financial/poai-ppa/services/poai-ppa.service";
 import { ProjectsService } from "../../financial/projects/services/projects.service";
 import { ExportResult } from "./export.types";
+import {
+  POAI_PPA_COLUMNS,
+  PROJECT_COLUMNS,
+  mapProjectToExport,
+  mapPoaiPpaToExport,
+  getExportDate,
+} from "../../shared/helpers/export-columns.helper";
 
 @Injectable()
 export class PoaiPpaExportBuilder {
@@ -28,13 +35,7 @@ export class PoaiPpaExportBuilder {
       "ASC",
     );
 
-    const data = result.data.map((row: any) => ({
-      projectCode: row.projectCode ?? row.project?.code ?? "",
-      projectName: row.project?.name ?? "",
-      year: row.year ?? "",
-      projectedPoai: row.projectedPoai ? Number(row.projectedPoai) : 0,
-      assignedPoai: row.assignedPoai ? Number(row.assignedPoai) : 0,
-    }));
+    const data = result.data.map(mapPoaiPpaToExport);
 
     // 2. Proyectos (detalle completo)
     const projectsResult = await this.projectsService.findAllPaginated(
@@ -45,47 +46,21 @@ export class PoaiPpaExportBuilder {
       "ASC",
     );
 
-    const projectsData = projectsResult.data.map((row: any) => ({
-      code: row.code ?? "",
-      name: row.name ?? "",
-      initialBudget: row.initialBudget ? Number(row.initialBudget) : 0,
-      currentBudget: row.currentBudget ? Number(row.currentBudget) : 0,
-      execution: row.execution ? Number(row.execution) : 0,
-      origin: row.origin ?? "",
-      state: row.state ?? "",
-      dependencyCode: row.dependency?.code ?? "",
-      dependencyName: row.dependency?.name ?? "",
-    }));
+    const projectsData = projectsResult.data.map(mapProjectToExport);
 
-    const now = new Date().toISOString().slice(0, 10);
+    const now = getExportDate();
 
     return {
       fileName: `poai-ppa-${now}.xlsx`,
       sheets: [
         {
           name: "POAI PPA",
-          columns: [
-            { header: "Código Proyecto", key: "projectCode", width: 18 },
-            { header: "Nombre Proyecto", key: "projectName", width: 40 },
-            { header: "Año", key: "year", width: 10 },
-            { header: "POAI Proyectado", key: "projectedPoai", width: 20, numFmt: "#,##0.00" },
-            { header: "POAI Asignado", key: "assignedPoai", width: 20, numFmt: "#,##0.00" },
-          ],
+          columns: POAI_PPA_COLUMNS,
           data,
         },
         {
           name: "Proyectos",
-          columns: [
-            { header: "Código", key: "code", width: 18 },
-            { header: "Nombre", key: "name", width: 40 },
-            { header: "Presupuesto Inicial", key: "initialBudget", width: 20, numFmt: "#,##0.00" },
-            { header: "Presupuesto Actual", key: "currentBudget", width: 20, numFmt: "#,##0.00" },
-            { header: "Ejecución", key: "execution", width: 20, numFmt: "#,##0.00" },
-            { header: "Origen", key: "origin", width: 20 },
-            { header: "Estado", key: "state", width: 15 },
-            { header: "Dependencia (Código)", key: "dependencyCode", width: 18 },
-            { header: "Dependencia (Nombre)", key: "dependencyName", width: 35 },
-          ],
+          columns: PROJECT_COLUMNS,
           data: projectsData,
         },
       ],
